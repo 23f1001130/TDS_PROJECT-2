@@ -4,9 +4,11 @@
 #   "seaborn",
 #   "matplotlib",
 #   "pandas",
-#   "requests"
+#   "requests",
+#   "openai",
+#   "chardet"  # Add all packages used in the script
 # ]
-
+# ///
 import os
 import pandas as pd
 import seaborn as sns
