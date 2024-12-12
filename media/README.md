@@ -51,5 +51,5 @@ The dataset `media.csv` contains information on media entries with a total of 2,
 By following these recommendations, the dataset can be leveraged more effectively to enhance content quality and engagement across diverse media types and languages.
 
 ## Visualizations
-![Chart](media\media_heatmap.png)
-![Chart](media\media_barplot.png)
+![Chart](\media\media_heatmap.png)
+![Chart](\media\media_barplot.png)
