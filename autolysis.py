@@ -132,7 +132,8 @@ def save_markdown(story, charts, output_file):
         f.write(story + "\n\n")
         f.write("## Visualizations\n")
         for chart in charts:
-           f.write(f"![Chart](\{chart})\n")
+          f.write(f"![Chart]({{chart}})\n")
+
 
 def main():
     # Accept CSV filename and folder path from command-line arguments
