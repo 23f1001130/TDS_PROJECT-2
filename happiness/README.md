@@ -41,3 +41,5 @@ By focusing on these areas, we can derive meaningful insights from the dataset a
 ## Visualizations
 ![Chart](./happiness\happiness_heatmap.png)
 ![Chart](./happiness\happiness_barplot.png)
+
+![Chart](.happiness/happiness_barplot.png)
