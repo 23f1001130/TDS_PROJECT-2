@@ -55,3 +55,6 @@ By addressing the missing values and conducting further analysis, the dataset ca
 ## Visualizations
 ![Chart](./happiness\happiness_heatmap.png)
 ![Chart](./happiness\happiness_barplot.png)
+![Chart](./happiness/happiness_heatmap.png)
+![Chart](./happiness/happiness_barplot.png)
+
