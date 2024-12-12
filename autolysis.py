@@ -1,12 +1,3 @@
-# /// script
-# requires-python = ">=3.11"
-# dependencies = [
-#   "seaborn",
-#   "matplotlib",
-#   "pandas",
-#   "requests",
-# ]
-# ///
 
 # /// script
 # requires-python = ">=3.11"
