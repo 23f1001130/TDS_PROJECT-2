@@ -52,4 +52,4 @@ By following these recommendations, the dataset can be leveraged more effectivel
 
 ## Visualizations
 ![Chart](/media/media_heatmap.png)
-![Chart](\media\media_barplot.png)
+![Chart](/media/media_barplot.png)
