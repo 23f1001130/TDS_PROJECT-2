@@ -39,10 +39,8 @@ The dataset `happiness.csv` contains data on happiness indicators across various
 By focusing on these areas, we can derive meaningful insights from the dataset and contribute to discussions on enhancing life satisfaction globally.
 
 ## Visualizations
-![Chart](./happiness\happiness_heatmap.png)
-![Chart](./happiness\happiness_barplot.png)
+![Chart](/happiness/happiness_heatmap.png)
+![Chart](/happiness/happiness_barplot.png)
 
-![Chart](.happiness/happiness_barplot.png)
-![Chart](happiness/happiness_heatmap.png)
-happiness/happiness_barplot.png
+
 
