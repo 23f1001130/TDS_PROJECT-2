@@ -53,6 +53,6 @@ The dataset `media.csv` consists of **2652 records** across **8 columns** that p
 By addressing the missing values and conducting further analysis, the dataset can provide valuable insights that drive content strategy and audience engagement.
 
 ## Visualizations
-![Chart](./media\media_heatmap.png)
-![Chart](./media\media_barplot.png)
+![Chart](./media/media_heatmap.png)
+![Chart](./media/media_barplot.png)
 
