@@ -42,8 +42,8 @@ The dataset consists of 10,000 entries, each representing a unique book with 23 
 5. **Further Research**:
    - Investigate the impact of language diversity in literature on average ratings and reader engagement, given the high number of missing `language_code` entries.
 
-By addressing the dataset’s missing values, performing thorough EDA, and utilizing the insights gained, stakeholders can improve decision-making processes related to book recommendations, marketing strategies, and understanding reader preferences.
+By addressing the datasetâ€™s missing values, performing thorough EDA, and utilizing the insights gained, stakeholders can improve decision-making processes related to book recommendations, marketing strategies, and understanding reader preferences.
 
 ## Visualizations
-![Chart](./goodreads\goodreads_heatmap.png)
-![Chart](./goodreads\goodreads_barplot.png)
+![Chart](/goodreads/goodreads_heatmap.png)
+![Chart](/goodreads/goodreads_barplot.png)
