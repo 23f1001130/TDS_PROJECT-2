@@ -54,5 +54,5 @@ By addressing the missing values and conducting further analysis, the dataset ca
 
 ## Visualizations
 ![Chart](./media/media_heatmap.png)
-![Chart](./media/media_barplot.png)
+![Chart](/media/media_barplot.png)
 
