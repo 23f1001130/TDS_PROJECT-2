@@ -73,7 +73,7 @@ def visualize_data(df, output_prefix, subdirectory):
         heatmap.set_title("Correlation Heatmap", fontsize=12)
         heatmap_file = os.path.join(subdirectory, f"{output_prefix}_heatmap.png")
         plt.savefig(heatmap_file, dpi=300)
-        charts.append(heatmap_file)
+        charts.append(f"/{subdirectory}/{os.path.basename(heatmap_file)}")
         plt.close()
 
     # Example 2: Bar Plot for the first categorical column
@@ -91,7 +91,7 @@ def visualize_data(df, output_prefix, subdirectory):
         plt.ylabel(categorical_columns[0], fontsize=10)
         barplot_file = os.path.join(subdirectory, f"{output_prefix}_barplot.png")
         plt.savefig(barplot_file, dpi=300)
-        charts.append(barplot_file)
+        charts.append(f"/{subdirectory}/{os.path.basename(barplot_file)}")
         plt.close()
 
     return charts
