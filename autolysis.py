@@ -11,166 +11,204 @@
 # ///
 import os
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-import traceback
-import openai
-import chardet
+import logging
 import sys
+from dotenv import load_dotenv
+import requests
+import plotly.express as px
 
-# Set the AIPROXY_TOKEN environment variable
-os.environ["AIPROXY_TOKEN"] = "your_actual_token_here"  # Set the token directly here
+# Load environment variables from .env file
+load_dotenv()
+API_TOKEN = os.getenv("AIPROXY_TOKEN")
 
-# Prompt the user for their API token (if you want user input instead)
-api_proxy_token = os.environ.get("AIPROXY_TOKEN", "Token not found")  # Use the token from the environment variable
+# Validate API Token
+if not API_TOKEN:
+    sys.exit("Environment variable AIPROXY_TOKEN is not set. Please check your .env file.")
 
-if api_proxy_token == "Token not found":
-    raise ValueError("API proxy token is required.")
+# AI Proxy setup
+API_BASE = "https://aiproxy.sanand.workers.dev/openai/v1"
 
-# Ensure a CSV file is provided as a system argument
-if len(sys.argv) < 2:
-    raise ValueError("Please provide the path to the CSV file as a command-line argument.")
+# Set up logging
+logging.basicConfig(
+    filename="autolysis.log",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
-csv_file_path = sys.argv[1]
-if not os.path.isfile(csv_file_path) or not csv_file_path.lower().endswith(".csv"):
-    raise ValueError("A valid CSV file path is required.")
-
-# Function to detect the encoding of a file
-def detect_encoding(file_path):
-    with open(file_path, 'rb') as file:
-        result = chardet.detect(file.read(1024))  # Read the first 1 KB for detection
-        return result['encoding']
-
-# Function to read a CSV file
-def read_csv(filename):
-    encodings_to_try = [detect_encoding(filename), 'utf-8', 'utf-8-sig', 'latin1', 'ISO-8859-1']
-    for encoding in encodings_to_try:
-        try:
-            df = pd.read_csv(filename, encoding=encoding)
-            print(f"Dataset loaded: {filename} (Encoding: {encoding})")
-            return df
-        except Exception as e:
-            print(f"Failed with encoding {encoding}: {e}")
-    print(f"All encoding attempts failed for {filename}.")
-    return None
-
-# Function to analyze the dataset
-def analyze_data(df):
+# Function: Load dataset dynamically
+def load_dataset(file_path):
     try:
-        analysis = {
-            "shape": df.shape,
-            "columns": df.dtypes.to_dict(),
-            "missing_values": df.isnull().sum().to_dict(),
-            "summary_statistics": df.describe(include="all").to_dict(),
+        data = pd.read_csv(file_path, encoding="latin1")
+        logging.info("Dataset loaded successfully.")
+        return data
+    except Exception as e:
+        logging.error(f"Error loading dataset: {e}")
+        sys.exit("Failed to load dataset. Check the file path or format.")
+
+# Function: Preprocess data dynamically
+def preprocess_data(data):
+    try:
+        # Separate numeric and non-numeric columns
+        numeric_cols = data.select_dtypes(include=["number"])
+        non_numeric_cols = data.select_dtypes(exclude=["number"])
+
+        # Fill NaNs in numeric columns with the mean
+        for col in numeric_cols.columns:
+            data[col] = data[col].fillna(data[col].mean())
+
+        # Fill NaNs in non-numeric columns with "Unknown"
+        for col in non_numeric_cols.columns:
+            data[col] = data[col].fillna("Unknown")
+
+        logging.info("Data preprocessing completed.")
+        return data
+    except Exception as e:
+        logging.error(f"Error during preprocessing: {e}")
+        sys.exit("Data preprocessing failed.")
+
+# Function: Analyze data dynamically
+def analyze_data(data):
+    try:
+        numeric_cols = data.select_dtypes(include=["number"])
+        categorical_cols = data.select_dtypes(exclude=["number"])
+
+        summary = numeric_cols.describe().to_string()
+        missing = data.isnull().sum()
+        correlation = numeric_cols.corr()
+
+        categorical_summary = categorical_cols.describe(include="all").to_string() if not categorical_cols.empty else "No categorical data."
+
+        logging.info("Data analysis completed.")
+        return {
+            "summary": summary,
+            "missing": missing,
+            "correlation": correlation,
+            "categorical_summary": categorical_summary,
         }
-        numeric_data = df.select_dtypes(include=["number"])
-        if not numeric_data.empty:
-            analysis["correlation_matrix"] = numeric_data.corr().to_dict()
-        else:
-            analysis["correlation_matrix"] = None
-        return analysis
     except Exception as e:
-        print(f"Error analyzing data: {e}")
-        traceback.print_exc()
-        return {}
+        logging.error(f"Error during analysis: {e}")
+        sys.exit("Data analysis failed.")
 
-# Function to visualize the dataset
-def visualize_data(df, output_prefix):
-    charts = []
+# Function: Visualize data dynamically (using Plotly for heatmap and top 3 histograms)
+def visualize_data(data, correlation, output_dir, output_name_prefix):
     try:
-        # Correlation Heatmap
-        numeric_columns = df.select_dtypes(include=["number"]).columns
-        if len(numeric_columns) > 0:
-            plt.figure(figsize=(14, 12))
-            heatmap = sns.heatmap(
-                df[numeric_columns].corr(),
-                annot=True,
-                cmap="coolwarm",
-                fmt=".2f",
-                cbar_kws={'shrink': 0.8}
+        # Create and save the correlation heatmap
+        fig = px.imshow(
+            correlation, 
+            text_auto=True, 
+            title="Correlation Heatmap", 
+            color_continuous_scale='Viridis'
+        )
+        fig.write_image(os.path.join(output_dir, f"{output_name_prefix}_correlation_heatmap.png"))
+        logging.info("Correlation heatmap saved as PNG.")
+        
+        # Create and save top 3 histograms based on highest correlation
+        numeric_cols = data.select_dtypes(include=["number"])
+        top_columns = numeric_cols.corr().abs().sum().sort_values(ascending=False).head(3).index
+
+        for col in top_columns:
+            # Plot histogram using Plotly for the top 3 correlated columns
+            fig = px.histogram(
+                data, 
+                x=col, 
+                title=f"Histogram of {col}",
+                nbins=30, 
+                color_discrete_sequence=["#636EFA"]
             )
-            heatmap.set_title("Correlation Heatmap")
-            heatmap_file = f"{output_prefix}_heatmap.png"
-            plt.savefig(heatmap_file, dpi=300)
-            charts.append(heatmap_file)
-            plt.close()
-
-        # Distribution of numerical columns
-        for column in numeric_columns:
-            plt.figure(figsize=(8, 5))
-            df[column].hist(bins=30, color="skyblue", edgecolor="black")
-            plt.title(f"Distribution of {column}")
-            plt.xlabel(column)
-            plt.ylabel("Frequency")
-            dist_file = f"{output_prefix}_{column}_distribution.png"
-            plt.savefig(dist_file, dpi=300)
-            charts.append(dist_file)
-            plt.close()
+            fig.write_image(os.path.join(output_dir, f"{output_name_prefix}_{col}_histogram.png"))
+            logging.info(f"Histogram for {col} saved as PNG.")
+    
     except Exception as e:
-        print(f"Error visualizing data: {e}")
-        traceback.print_exc()
-    return charts
+        logging.error(f"Error during visualization: {e}")
+        sys.exit("Visualization failed.")
 
-# Function to interact with the LLM
-def interact_with_llm(filename, analysis, api_token):
+# Function: Generate dynamic narrative using AI Proxy
+def generate_narrative(data_info, include_summary=True, include_missing=True, include_correlation=True, include_categorical=True):
     try:
-        openai.api_key = api_token  # Set the API key for the new interface
+        # Create prompt dynamically based on the user's preference
+        prompt = "You are a data analyst. Here is the dataset summary:\n\n"
 
-        prompt = (
-            f"I analyzed a dataset named '{filename}' with the following details:\n"
-            f"- Shape: {analysis.get('shape')}\n"
-            f"- Columns and Types: {analysis.get('columns')}\n"
-            f"- Missing Values: {analysis.get('missing_values')}\n"
-            f"- Summary Statistics: {analysis.get('summary_statistics')}\n\n"
-            "Please summarize the dataset, provide key insights, and suggest recommendations."
-        )
+        if include_summary:
+            prompt += f"Dataset Summary:\n{data_info['summary']}\n\n"
 
-        # Use the new completions API from openai 1.0.0
-        response = openai.completions.create(
-            model="gpt-4",  # Specify the model you want to use
-            prompt=prompt,
-            max_tokens=1000  # Adjust token length as needed
-        )
-        return response['choices'][0]['text'].strip()  # Extracting the result from the API response
+        if include_missing:
+            prompt += f"Missing values:\n{data_info['missing']}\n\n"
+
+        if include_correlation:
+            prompt += f"Correlation analysis (if applicable):\n{data_info['correlation']}\n\n"
+
+        if include_categorical:
+            prompt += f"Categorical data summary:\n{data_info['categorical_summary']}\n\n"
+
+        prompt += "Write a detailed analysis story with insights, implications, and recommendations."
+
+        headers = {
+            "Authorization": f"Bearer {API_TOKEN}",
+            "Content-Type": "application/json",
+        }
+
+        payload = {
+            "model": "gpt-4o-mini",  # or another smaller model to optimize time
+            "messages": [{"role": "user", "content": prompt}],
+        }
+
+        response = requests.post(f"{API_BASE}/chat/completions", json=payload, headers=headers)
+        response.raise_for_status()
+        narrative = response.json()["choices"][0]["message"]["content"]
+        logging.info("Narrative generated successfully.")
+        return narrative
+
     except Exception as e:
-        print(f"Error interacting with LLM: {e}")
-        traceback.print_exc()
-        return "Failed to generate insights from the LLM."
+        logging.error(f"Error generating narrative: {e}")
+        sys.exit("Failed to generate narrative.")
 
-# Function to save the analysis and insights to a Markdown file
-def save_markdown(analysis, charts, insights, output_file):
+# Function: Create README.md dynamically
+def create_readme(narrative, output_dir, output_name_prefix):
     try:
-        with open(output_file, "w") as f:
-            f.write("# Analysis Report\n\n")
-            f.write("## Dataset Analysis\n")
-            f.write(f"Shape: {analysis.get('shape')}\n")
-            f.write(f"Columns:\n{analysis.get('columns')}\n")
-            f.write(f"Missing Values:\n{analysis.get('missing_values')}\n")
-            f.write(f"Summary Statistics:\n{analysis.get('summary_statistics')}\n")
-            f.write("\n## LLM Insights\n")
-            f.write(insights + "\n")
-            f.write("\n## Charts\n")
-            for chart in charts:
-                f.write(f"![{chart}]({chart})\n")
+        # Save the README in the corresponding dataset directory
+        readme_path = os.path.join(output_dir, f"README.md")
+        with open(readme_path, "w") as file:
+            file.write("# Analysis Report\n\n")
+            file.write(narrative)
+            file.write("\n\n![Correlation Heatmap](goodreads_correlation_heatmap.png)\n")
+            
+            # Add top 3 histogram links to the README
+            for col in ["col1", "col2", "col3"]:  # Replace with actual column names
+                file.write(f"![{col} Histogram]({output_name_prefix}_{col}_histogram.png)\n")
+            
+        logging.info("README.md created successfully.")
     except Exception as e:
-        print(f"Error saving Markdown file: {e}")
-        traceback.print_exc()
+        logging.error(f"Error creating README.md: {e}")
+        sys.exit("Failed to create README.md.")
 
-# Main function to process the CSV file
+# Main function
 def main():
-    print(f"Processing {csv_file_path}...")
-    df = read_csv(csv_file_path)
-    if df is None:
-        return
+    if len(sys.argv) != 2:
+        sys.exit("Usage: uvicorn autolysis:app --reload")
 
-    analysis = analyze_data(df)
-    output_prefix = os.path.splitext(os.path.basename(csv_file_path))[0]
-    charts = visualize_data(df, output_prefix)
-    insights = interact_with_llm(csv_file_path, analysis, api_proxy_token)
+    file_path = sys.argv[1]
+    dataset_name = os.path.splitext(os.path.basename(file_path))[0]
+    output_name_prefix = dataset_name  # Use dataset name as prefix
+    
+    # Create output directory based on dataset name
+    output_dir = os.path.join(dataset_name)
+    os.makedirs(output_dir, exist_ok=True)
 
-    readme_file = f"{output_prefix}_README.md"
-    save_markdown(analysis, charts, insights, readme_file)
-    print(f"Completed analysis for {csv_file_path}. Results saved to {readme_file}.")
+    data = load_dataset(file_path)
+    processed_data = preprocess_data(data)
+    analysis_results = analyze_data(processed_data)
+
+    # Generate narrative dynamically by choosing which sections to include
+    narrative = generate_narrative(
+        analysis_results, 
+        include_summary=True,  # User can modify these flags as needed
+        include_missing=True,
+        include_correlation=True,
+        include_categorical=True
+    )
+
+    create_readme(narrative, output_dir, output_name_prefix)
+    visualize_data(processed_data, analysis_results["correlation"], output_dir, output_name_prefix)
 
 if __name__ == "__main__":
     main()
