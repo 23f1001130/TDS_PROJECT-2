@@ -18,20 +18,15 @@ from scipy import stats
 
 # Retrieve API token from environment variables
 from dotenv import load_dotenv
-
-from dotenv import load_dotenv
-import os
-
 load_dotenv()
 
 # Debugging the environment variable loading
 api_proxy_token = os.environ.get("AIPROXY_TOKEN")
-print(f"Debug - AIPROXY_TOKEN: {api_proxy_token}")  # Add this debug line
+print(f"Debug - AIPROXY_TOKEN: {api_proxy_token}")
 
 if not api_proxy_token:
     print("Error: API token not set in environment variables. Exiting.")
     exit(1)
-
 
 # Define the API base URL
 api_proxy_base_url = "https://aiproxy.sanand.workers.dev/openai/v1"
@@ -60,7 +55,7 @@ def analyze_data(df):
     return analysis
 
 def visualize_data(df, output_prefix, subdirectory):
-    """Generate visualizations for the dataset."""
+    """Generate visualizations for the dataset using Seaborn."""
     charts = []
     os.makedirs(subdirectory, exist_ok=True)
 
@@ -77,20 +72,17 @@ def visualize_data(df, output_prefix, subdirectory):
         )
         heatmap.set_title("Correlation Heatmap", fontsize=12)
         heatmap_file = os.path.join(subdirectory, f"{output_prefix}_heatmap.png")
-        plt.savefig(heatmap_file, dpi=300)  # Adjust resolution for clarity
+        plt.savefig(heatmap_file, dpi=300)
         charts.append(heatmap_file)
+        charts.append(f"/{subdirectory}/{os.path.basename(heatmap_file)}")
         plt.close()
 
     # Example 2: Bar Plot for the first categorical column
-    categorical_columns = df.select_dtypes(include=["object"]).columns
-    if len(categorical_columns) > 0:
-        plt.figure(figsize=(14, 8)) 
-        top_categories = df[categorical_columns[0]].value_counts().head(10)
-        top_categories.sort_values().plot(kind="barh", color="skyblue")
-        plt.title(f"Top 10 {categorical_columns[0]} Categories", fontsize=12)
+        plt.ylabel(categorical_columns[0], fontsize=10)
         barplot_file = os.path.join(subdirectory, f"{output_prefix}_barplot.png")
         plt.savefig(barplot_file, dpi=300)
         charts.append(barplot_file)
+        charts.append(f"/{subdirectory}/{os.path.basename(barplot_file)}")
         plt.close()
 
     return charts
@@ -131,8 +123,7 @@ def save_markdown(story, charts, output_file):
         f.write(story + "\n\n")
         f.write("## Visualizations\n")
         for chart in charts:
-            f.write(f"![Chart](./{chart})\n")
-            f.write(f"![Chart](/{chart})/n")
+            f.write(f"![Chart]({chart})\n")
 
 def main():
     # Accept CSV filename and folder path from command-line arguments
