@@ -9,6 +9,7 @@
 #   "ipykernel",
 #   "seaborn",
 #   "matplotlib",
+#   "plotly",
 #   "numpy",
 #   "scipy"
 # ]
