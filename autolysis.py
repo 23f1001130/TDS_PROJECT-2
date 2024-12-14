@@ -3,6 +3,7 @@
 # dependencies = [
 #   "pandas",
 #   "openai",
+#   "tabulate",
 #   "scikit-learn",
 #   "requests",
 #   "ipykernel",
