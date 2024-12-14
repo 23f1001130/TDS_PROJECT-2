@@ -9,8 +9,7 @@
 #   "seaborn",
 #   "matplotlib",
 #   "numpy",
-#   "scipy",
- 
+#   "scipy"
 # ]
 # ///
 
