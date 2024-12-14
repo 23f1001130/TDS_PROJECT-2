@@ -9,41 +9,50 @@
 #   "chardet"  # Add all packages used in the script
 # ]
 # ///
-
 import os
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import traceback
-import openai
 import chardet
-import sys
+import requests
+from google.colab import files
+from dotenv import load_dotenv  # For loading environment variables from .env file
 
-# Set the AIPROXY_TOKEN environment variable
-os.environ["AIPROXY_TOKEN"] = "your_actual_token_here"  # Set the token directly here
+# Step 1: Upload the .env file
+print("Please upload your .env file:")
+uploaded_env = files.upload()
+env_file_path = list(uploaded_env.keys())[0]
 
-# Prompt the user for their API token (if you want user input instead)
-api_proxy_token = os.environ.get("AIPROXY_TOKEN", "Token not found")  # Use the token from the environment variable
+if not os.path.isfile(env_file_path) or not env_file_path.lower().endswith(".env"):
+    raise ValueError("A valid .env file is required.")
 
-if api_proxy_token == "Token not found":
-    raise ValueError("API proxy token is required.")
+# Step 2: Load Environment Variables from the uploaded .env file
+load_dotenv(env_file_path)  # Loads variables from the uploaded .env file
 
-# Ensure a CSV file is provided as a system argument
-if len(sys.argv) < 2:
-    raise ValueError("Please provide the path to the CSV file as a command-line argument.")
+# Step 3: Read API Token from Environment Variable
+api_proxy_token = os.environ.get("AIPROXY_TOKEN")
+if not api_proxy_token:
+    raise ValueError("API proxy token not found. Please set the 'AIPROXY_TOKEN' in the .env file.")
 
-csv_file_path = sys.argv[1]
+# Step 4: Upload the Dataset (CSV)
+print("Please upload your CSV dataset file:")
+uploaded_csv = files.upload()
+csv_file_path = list(uploaded_csv.keys())[0]
+
 if not os.path.isfile(csv_file_path) or not csv_file_path.lower().endswith(".csv"):
-    raise ValueError("A valid CSV file path is required.")
+    raise ValueError("A valid CSV file is required.")
 
 # Function to detect the encoding of a file
 def detect_encoding(file_path):
+    """Detect file encoding."""
     with open(file_path, 'rb') as file:
         result = chardet.detect(file.read(1024))  # Read the first 1 KB for detection
         return result['encoding']
 
 # Function to read a CSV file
 def read_csv(filename):
+    """Read the dataset with the correct encoding."""
     encodings_to_try = [detect_encoding(filename), 'utf-8', 'utf-8-sig', 'latin1', 'ISO-8859-1']
     for encoding in encodings_to_try:
         try:
@@ -57,6 +66,7 @@ def read_csv(filename):
 
 # Function to analyze the dataset
 def analyze_data(df):
+    """Analyze the dataset and return a summary."""
     try:
         analysis = {
             "shape": df.shape,
@@ -77,6 +87,7 @@ def analyze_data(df):
 
 # Function to visualize the dataset
 def visualize_data(df, output_prefix):
+    """Generate visualizations for the dataset."""
     charts = []
     try:
         # Correlation Heatmap
@@ -112,34 +123,66 @@ def visualize_data(df, output_prefix):
         traceback.print_exc()
     return charts
 
-# Function to interact with the LLM
-def interact_with_llm(filename, analysis, api_token):
+# Function to interact with the LLM (via API Proxy)
+def interact_with_llm_optimized(filename, analysis, api_token):
+    """Interact with the gpt-4o-mini LLM via the API Proxy with reduced tokens."""
+    import json  # Ensure payload and response debugging
+
     try:
-        openai.api_key = api_token  # Set the API key for the new interface
+        # API Proxy Base URL and Endpoint
+        api_proxy_base_url = "https://aiproxy.sanand.workers.dev"
+        api_url = f"{api_proxy_base_url}/openai/v1/chat/completions"
 
+        # Request Headers
+        headers = {
+            "Authorization": f"Bearer {api_token}",
+            "Content-Type": "application/json",
+        }
+
+        # Construct Optimized Prompt
         prompt = (
-            f"I analyzed a dataset named '{filename}' with the following details:\n"
+            f"I analyzed a dataset named '{filename}' with:\n"
             f"- Shape: {analysis.get('shape')}\n"
-            f"- Columns and Types: {analysis.get('columns')}\n"
-            f"- Missing Values: {analysis.get('missing_values')}\n"
-            f"- Summary Statistics: {analysis.get('summary_statistics')}\n\n"
-            "Please summarize the dataset, provide key insights, and suggest recommendations."
+            f"- Columns: {list(analysis.get('columns').keys())}\n"
+            f"- Missing Values Count: {sum(analysis.get('missing_values').values())}\n\n"
+            "Summarize key insights and suggest improvements."
         )
 
-        # Use the new completions API from openai 1.0.0
-        response = openai.completions.create(
-            model="gpt-4",  # Specify the model you want to use
-            prompt=prompt,
-            max_tokens=1000  # Adjust token length as needed
-        )
-        return response['choices'][0]['text'].strip()  # Extracting the result from the API response
+        # Request Payload with reduced tokens
+        payload = {
+            "model": "gpt-4o-mini",  # The required model
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 256,  # Reduced token limit
+            "temperature": 0.5,  # Lower temperature for focused responses
+            "top_p": 0.9  # Slightly narrower randomness for efficiency
+        }
+
+        # Log Payload for Debugging
+        print("Payload:", json.dumps(payload, indent=4))
+
+        # Send API Request
+        response = requests.post(api_url, headers=headers, json=payload)
+
+        # Handle Response
+        if response.status_code == 200:
+            result = response.json()
+            # Log result for confirmation
+            print("Response:", json.dumps(result, indent=4))
+            return result['choices'][0]['message']['content'].strip()
+        else:
+            # Log detailed error
+            print(f"Error Details: {response.text}")
+            raise ValueError(f"API Request failed with status code {response.status_code}: {response.text}")
+
     except Exception as e:
+        # Log traceback for debugging
         print(f"Error interacting with LLM: {e}")
         traceback.print_exc()
         return "Failed to generate insights from the LLM."
 
 # Function to save the analysis and insights to a Markdown file
 def save_markdown(analysis, charts, insights, output_file):
+    """Save analysis, insights, and visualizations to a Markdown file."""
     try:
         with open(output_file, "w") as f:
             f.write("# Analysis Report\n\n")
@@ -158,7 +201,8 @@ def save_markdown(analysis, charts, insights, output_file):
         traceback.print_exc()
 
 # Main function to process the CSV file
-def main():
+def main_optimized():
+    """Main function to process the dataset and generate insights with minimal cost."""
     print(f"Processing {csv_file_path}...")
     df = read_csv(csv_file_path)
     if df is None:
@@ -167,12 +211,16 @@ def main():
     analysis = analyze_data(df)
     output_prefix = os.path.splitext(os.path.basename(csv_file_path))[0]
     charts = visualize_data(df, output_prefix)
-    insights = interact_with_llm(csv_file_path, analysis, api_proxy_token)
+
+    # Only request insights if dataset is small/important
+    if len(df) <= 10000:  # Example threshold
+        insights = interact_with_llm_optimized(csv_file_path, analysis, api_proxy_token)
+    else:
+        insights = "Dataset too large for insights within token budget."
 
     readme_file = f"{output_prefix}_README.md"
     save_markdown(analysis, charts, insights, readme_file)
     print(f"Completed analysis for {csv_file_path}. Results saved to {readme_file}.")
 
-
 if __name__ == "__main__":
-    main()
+    main_optimized()
