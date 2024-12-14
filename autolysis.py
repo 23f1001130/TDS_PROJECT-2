@@ -2,14 +2,15 @@
 # requires-python = ">=3.9"
 # dependencies = [
 #   "pandas",
+#   "openai",
+#   "scikit-learn",
+#   "requests",
+#   "ipykernel",
 #   "seaborn",
 #   "matplotlib",
 #   "numpy",
 #   "scipy",
-#   "openai",
-#   "scikit-learn",
-#   "requests",
-#   "ipykernel", 
+ 
 # ]
 # ///
 
