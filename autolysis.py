@@ -11,110 +11,167 @@
 # ///
 import os
 import pandas as pd
-import openai
-from dotenv import load_dotenv
-import matplotlib.pyplot as plt
 import seaborn as sns
+import matplotlib.pyplot as plt
+import traceback
+import openai
+import chardet
+import sys
 
-# Load environment variables from myfile.env
-load_dotenv("C:\\Users\\91735\\OneDrive\\Desktop\\Analysis\\myfile.env")
+# Set the AIPROXY_TOKEN environment variable
+os.environ["AIPROXY_TOKEN"] = "your_actual_token_here"  # Set the token directly here
 
-# Get the AI Proxy token from the environment variable
-aiproxy_token = os.environ["AIPROXY_TOKEN"]
+# Prompt the user for their API token (if you want user input instead)
+api_proxy_token = os.environ.get("AIPROXY_TOKEN", "Token not found")  # Use the token from the environment variable
 
-# Set up the OpenAI API with the token
-openai.api_key = aiproxy_token
+if api_proxy_token == "Token not found":
+    raise ValueError("API proxy token is required.")
 
-# Define file paths for CSVs and output folder
-csv_folder = "C:\\Users\\91735\\OneDrive\\Desktop\\Analysis"
-output_folder = os.path.join(csv_folder, "analysis_results")
-os.makedirs(output_folder, exist_ok=True)
+# Ensure a CSV file is provided as a system argument
+if len(sys.argv) < 2:
+    raise ValueError("Please provide the path to the CSV file as a command-line argument.")
 
-def read_csv_file(file_name):
-    """Reads a CSV file and returns a DataFrame."""
-    try:
-        file_path = os.path.join(csv_folder, file_name)
-        df = pd.read_csv(file_path)
-        print(f"Successfully loaded {file_name}")
-        return df
-    except Exception as e:
-        print(f"Error reading {file_name}: {e}")
-        return None
+csv_file_path = sys.argv[1]
+if not os.path.isfile(csv_file_path) or not csv_file_path.lower().endswith(".csv"):
+    raise ValueError("A valid CSV file path is required.")
 
+# Function to detect the encoding of a file
+def detect_encoding(file_path):
+    with open(file_path, 'rb') as file:
+        result = chardet.detect(file.read(1024))  # Read the first 1 KB for detection
+        return result['encoding']
+
+# Function to read a CSV file
+def read_csv(filename):
+    encodings_to_try = [detect_encoding(filename), 'utf-8', 'utf-8-sig', 'latin1', 'ISO-8859-1']
+    for encoding in encodings_to_try:
+        try:
+            df = pd.read_csv(filename, encoding=encoding)
+            print(f"Dataset loaded: {filename} (Encoding: {encoding})")
+            return df
+        except Exception as e:
+            print(f"Failed with encoding {encoding}: {e}")
+    print(f"All encoding attempts failed for {filename}.")
+    return None
+
+# Function to analyze the dataset
 def analyze_data(df):
-    """Analyzes the data and generates a summary."""
-    summary = {
-        "shape": df.shape,
-        "columns": df.columns.tolist(),
-        "missing_values": df.isnull().sum().to_dict(),
-        "data_types": df.dtypes.astype(str).to_dict(),
-    }
-    return summary
-
-def generate_gpt_summary(df):
-    """Generates a summary using GPT-4o-Mini."""
-    data_preview = df.head(5).to_string()
-    prompt = f"""
-    Analyze the following dataset and provide insights:
-    {data_preview}
-    """
     try:
-        response = openai.Completion.create(
-            model="gpt-4o-mini",
-            prompt=prompt,
-            max_tokens=200,
-            temperature=0.7
+        analysis = {
+            "shape": df.shape,
+            "columns": df.dtypes.to_dict(),
+            "missing_values": df.isnull().sum().to_dict(),
+            "summary_statistics": df.describe(include="all").to_dict(),
+        }
+        numeric_data = df.select_dtypes(include=["number"])
+        if not numeric_data.empty:
+            analysis["correlation_matrix"] = numeric_data.corr().to_dict()
+        else:
+            analysis["correlation_matrix"] = None
+        return analysis
+    except Exception as e:
+        print(f"Error analyzing data: {e}")
+        traceback.print_exc()
+        return {}
+
+# Function to visualize the dataset
+def visualize_data(df, output_prefix):
+    charts = []
+    try:
+        # Correlation Heatmap
+        numeric_columns = df.select_dtypes(include=["number"]).columns
+        if len(numeric_columns) > 0:
+            plt.figure(figsize=(14, 12))
+            heatmap = sns.heatmap(
+                df[numeric_columns].corr(),
+                annot=True,
+                cmap="coolwarm",
+                fmt=".2f",
+                cbar_kws={'shrink': 0.8}
+            )
+            heatmap.set_title("Correlation Heatmap")
+            heatmap_file = f"{output_prefix}_heatmap.png"
+            plt.savefig(heatmap_file, dpi=300)
+            charts.append(heatmap_file)
+            plt.close()
+
+        # Distribution of numerical columns
+        for column in numeric_columns:
+            plt.figure(figsize=(8, 5))
+            df[column].hist(bins=30, color="skyblue", edgecolor="black")
+            plt.title(f"Distribution of {column}")
+            plt.xlabel(column)
+            plt.ylabel("Frequency")
+            dist_file = f"{output_prefix}_{column}_distribution.png"
+            plt.savefig(dist_file, dpi=300)
+            charts.append(dist_file)
+            plt.close()
+    except Exception as e:
+        print(f"Error visualizing data: {e}")
+        traceback.print_exc()
+    return charts
+
+# Function to interact with the LLM
+def interact_with_llm(filename, analysis, api_token):
+    try:
+        openai.api_key = api_token  # Set the API key for the new interface
+
+        prompt = (
+            f"I analyzed a dataset named '{filename}' with the following details:\n"
+            f"- Shape: {analysis.get('shape')}\n"
+            f"- Columns and Types: {analysis.get('columns')}\n"
+            f"- Missing Values: {analysis.get('missing_values')}\n"
+            f"- Summary Statistics: {analysis.get('summary_statistics')}\n\n"
+            "Please summarize the dataset, provide key insights, and suggest recommendations."
         )
-        return response.choices[0].text.strip()
-    except Exception as e:
-        print(f"Error generating GPT summary: {e}")
-        return None
 
-def create_correlation_matrix(df, output_path):
-    """Creates a correlation matrix heatmap and saves it as an image."""
+        # Use the new completions API from openai 1.0.0
+        response = openai.completions.create(
+            model="gpt-4",  # Specify the model you want to use
+            prompt=prompt,
+            max_tokens=1000  # Adjust token length as needed
+        )
+        return response['choices'][0]['text'].strip()  # Extracting the result from the API response
+    except Exception as e:
+        print(f"Error interacting with LLM: {e}")
+        traceback.print_exc()
+        return "Failed to generate insights from the LLM."
+
+# Function to save the analysis and insights to a Markdown file
+def save_markdown(analysis, charts, insights, output_file):
     try:
-        plt.figure(figsize=(10, 8))
-        correlation_matrix = df.corr()
-        sns.heatmap(correlation_matrix, annot=True, cmap="coolwarm", fmt=".2f")
-        plt.title("Correlation Matrix")
-        plt.savefig(output_path)
-        plt.close()
-        print(f"Correlation matrix saved to {output_path}")
+        with open(output_file, "w") as f:
+            f.write("# Analysis Report\n\n")
+            f.write("## Dataset Analysis\n")
+            f.write(f"Shape: {analysis.get('shape')}\n")
+            f.write(f"Columns:\n{analysis.get('columns')}\n")
+            f.write(f"Missing Values:\n{analysis.get('missing_values')}\n")
+            f.write(f"Summary Statistics:\n{analysis.get('summary_statistics')}\n")
+            f.write("\n## LLM Insights\n")
+            f.write(insights + "\n")
+            f.write("\n## Charts\n")
+            for chart in charts:
+                f.write(f"![{chart}]({chart})\n")
     except Exception as e:
-        print(f"Error creating correlation matrix: {e}")
+        print(f"Error saving Markdown file: {e}")
+        traceback.print_exc()
 
+# Main function to process the CSV file
 def main():
-    # Specify the CSV file name
-    csv_file = "input_data.csv"  # Replace with your actual CSV file name
-
-    # Read the CSV file
-    df = read_csv_file(csv_file)
+    print(f"Processing {csv_file_path}...")
+    df = read_csv(csv_file_path)
     if df is None:
         return
 
-    # Analyze the data
-    data_summary = analyze_data(df)
-    print("Data Summary:", data_summary)
+    analysis = analyze_data(df)
+    output_prefix = os.path.splitext(os.path.basename(csv_file_path))[0]
+    charts = visualize_data(df, output_prefix)
+    insights = interact_with_llm(csv_file_path, analysis, api_proxy_token)
 
-    # Generate GPT-based summary
-    gpt_summary = generate_gpt_summary(df)
-    if gpt_summary:
-        print("GPT Summary:", gpt_summary)
-
-    # Create and save the correlation matrix
-    correlation_image_path = os.path.join(output_folder, "correlation_matrix.png")
-    create_correlation_matrix(df, correlation_image_path)
-
-    # Save the summaries to a README file
-    readme_path = os.path.join(output_folder, "README.md")
-    with open(readme_path, "w") as readme_file:
-        readme_file.write("# Analysis Report\n\n")
-        readme_file.write("## Data Summary\n")
-        readme_file.write(f"{data_summary}\n\n")
-        if gpt_summary:
-            readme_file.write("## GPT Insights\n")
-            readme_file.write(f"{gpt_summary}\n")
-    print(f"Analysis report saved to {readme_path}")
+    readme_file = f"{output_prefix}_README.md"
+    save_markdown(analysis, charts, insights, readme_file)
+    print(f"Completed analysis for {csv_file_path}. Results saved to {readme_file}.")
 
 if __name__ == "__main__":
+    main_optimized()
     main()
