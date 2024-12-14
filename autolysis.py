@@ -1,14 +1,4 @@
-# /// script
-# requires-python = ">=3.11"
-# dependencies = [
-#   "seaborn",
-#   "matplotlib",
-#   "pandas",
-#   "requests",
-#   "openai",
-#   "chardet"  # Add all packages used in the script
-# ]
-# ///
+
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
