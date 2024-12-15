@@ -17,8 +17,6 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-import requests
-import json
 import openai  # Ensure this library is installed: pip install openai
 
 # -----------------------------------------------------------
@@ -43,11 +41,14 @@ def handle_data_types(df):
 
 def perform_analysis(df):
     """
-    Analyze the dataset for basic statistics, missing data, and correlations.
+    Perform a comprehensive analysis of the dataset:
+    - Numerical and categorical data summaries
+    - Missing values check
+    - Correlation matrix for numeric data
     """
     print("Performing dataset analysis...")  # Debug message
     
-    # Automatically handle data types
+    # Handle both numeric and categorical data types
     numeric_summary, categorical_summary, correlation_matrix = handle_data_types(df)
     print("Generated numerical and categorical summaries.")  # Debug
     
@@ -55,8 +56,22 @@ def perform_analysis(df):
     missing_data = df.isnull().sum()
     print("Identified missing data counts.")  # Debug
     
+    # Calculate additional statistical metrics
+    mean = df.mean()
+    median = df.median()
+    mode = df.mode().iloc[0]
+    std_dev = df.std()
+
+    # Store the results
+    stats = {
+        'mean': mean,
+        'median': median,
+        'mode': mode,
+        'std_dev': std_dev
+    }
+    
     print("Dataset analysis completed.")  # Debug
-    return numeric_summary, categorical_summary, missing_data, correlation_matrix
+    return numeric_summary, categorical_summary, missing_data, correlation_matrix, stats
 
 
 # -----------------------------------------------------------
@@ -92,7 +107,7 @@ def find_outliers(df):
 # -----------------------------------------------------------
 def generate_visualizations(correlation_matrix, outlier_counts, df, output_directory):
     """
-    Create visualizations including correlation heatmap and outlier distributions.
+    Create visualizations including correlation heatmap, outlier distributions, and distribution plots.
     """
     print("Creating data visualizations...")  # Debug
     
@@ -143,7 +158,7 @@ def generate_visualizations(correlation_matrix, outlier_counts, df, output_direc
 # -----------------------------------------------------------
 # Function to generate README file summarizing results
 # -----------------------------------------------------------
-def write_readme(summary, missing_data, corr_matrix, outlier_counts, df, output_directory):
+def write_readme(summary, missing_data, corr_matrix, outlier_counts, df, output_directory, stats):
     """
     Create a README.md summarizing the analysis and visualizations.
     """
@@ -163,6 +178,12 @@ def write_readme(summary, missing_data, corr_matrix, outlier_counts, df, output_
             # Adding categorical summaries
             readme.write("### Categorical Data Summary\n")
             readme.write(summary[1].to_string())
+            readme.write("\n\n")
+            
+            # Adding statistical insights (mean, median, etc.)
+            readme.write("### Additional Statistical Insights\n")
+            for stat, value in stats.items():
+                readme.write(f"- {stat.capitalize()}: {value}\n")
             readme.write("\n\n")
             
             # Missing data overview
@@ -205,7 +226,7 @@ def main(input_file):
         return
 
     # Perform analysis
-    numeric_summary, categorical_summary, missing_data, correlation_matrix = perform_analysis(df)
+    numeric_summary, categorical_summary, missing_data, correlation_matrix, stats = perform_analysis(df)
 
     # Detect outliers
     outliers = find_outliers(df)
@@ -216,7 +237,7 @@ def main(input_file):
     generate_visualizations(correlation_matrix, outliers, df, output_dir)
 
     # Write README
-    write_readme([numeric_summary, categorical_summary], missing_data, correlation_matrix, outliers, df, output_dir)
+    write_readme([numeric_summary, categorical_summary], missing_data, correlation_matrix, outliers, df, output_dir, stats)
 
     print("Workflow completed successfully!")  # Debug
 
