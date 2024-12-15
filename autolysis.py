@@ -12,21 +12,12 @@
 # ///
 import os
 import argparse
-import logging
 
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from PIL import Image
 
-# Set up logging
-logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
-
-# Suppress Matplotlib font manager debug messages
-import matplotlib
-matplotlib_logger = logging.getLogger('matplotlib')
-matplotlib_logger.setLevel(logging.WARNING) 
 # --- Helper Functions ---
 def compute_summary_statistics(df):
     """Generate descriptive statistics for the dataset."""
@@ -51,18 +42,11 @@ def plot_correlation_matrix(df, output_path):
 def generate_narrative(summary_stats, outliers, dataset_name):
     """Generate a narrative report for the dataset."""
     narrative = f"# Report for {dataset_name}\n\n"
-    narrative += "## Dataset Overview\n"
-    narrative += f"Number of rows: {summary_stats.shape[0]}\n"
-    narrative += f"Number of columns: {summary_stats.shape[1]}\n\n"
     narrative += "## Summary Statistics\n" + summary_stats.to_markdown() + "\n\n"
     if not outliers.empty:
         narrative += "## Outliers Detected\n" + outliers.to_markdown() + "\n\n"
     else:
         narrative += "## Outliers Detected\nNo significant outliers found.\n\n"
-    narrative += "## Visualizations\n"
-    narrative += "- Correlation Heatmap\n"
-    narrative += "- Pair Plot\n"
-    narrative += "- Boxplot\n"
     return narrative
 
 def generate_visualizations(df, dataset_name, output_dir):
@@ -77,104 +61,60 @@ def generate_visualizations(df, dataset_name, output_dir):
 
     # Boxplot for outliers
     boxplot_path = os.path.join(output_dir, f"{dataset_name}_boxplot.png")
-    df[numeric_columns].plot(kind='box', figsize=(6, 6))
+    df[numeric_columns].plot(kind='box', figsize=(6,6))
     plt.title("Boxplot of Numeric Features")
     plt.savefig(boxplot_path)
     plt.close()
 
-    # Bar chart for categorical columns
-    categorical_columns = df.select_dtypes(include=['object', 'category']).columns
-    for col in categorical_columns:
-        if df[col].nunique() < 20:  # Limit to avoid overly dense plots
-            plt.figure(figsize=(8, 6))
-            sns.countplot(y=col, data=df, order=df[col].value_counts().index)
-            plt.title(f"Frequency of {col}")
-            plt.savefig(os.path.join(output_dir, f"{dataset_name}_{col}_barplot.png"))
-            plt.close()
-
-def validate_metadata(output_dir):
-    """Ensure required files are present."""
-    required_files = ["README.md", "correlation.png", "pairplot.png", "boxplot.png"]
-    missing_files = []
-    for file in required_files:
-        if not os.path.exists(os.path.join(output_dir, file)):
-            missing_files.append(file)
-    if missing_files:
-        logging.warning(f"Missing required files: {', '.join(missing_files)}")
-    else:
-        logging.info("All required files are present.")
-
-def check_visual_output(output_dir):
-    """Verify visual outputs."""
-    for file in os.listdir(output_dir):
-        if file.endswith(".png"):
-            img = Image.open(os.path.join(output_dir, file))
-            logging.info(f"{file} - Dimensions: {img.size}, Mode: {img.mode}")
-
 # --- Main Processing Function ---
-import chardet
-
 def process_dataset(file_path, output_dir):
     """Process a dataset: analyze, visualize, and save outputs."""
-    try:
-        dataset_name = os.path.splitext(os.path.basename(file_path))[0]
-        
-        # Detect and handle file encoding
-        with open(file_path, 'rb') as f:
-            result = chardet.detect(f.read())
-        encoding = result['encoding']
-        logging.info(f"Detected encoding for {file_path}: {encoding}")
+    # Load the dataset
+    dataset_name = os.path.splitext(os.path.basename(file_path))[0]
+    df = pd.read_csv(file_path)
 
-        # Load the dataset with detected encoding
-        df = pd.read_csv(file_path, encoding=encoding)
+    # Create output directories
+    os.makedirs(output_dir, exist_ok=True)
+    narrative_path = os.path.join(output_dir, f"{dataset_name}_report.md")
+    visualization_path = os.path.join(output_dir, f"{dataset_name}_correlation.png")
 
-        # Create output directories
-        os.makedirs(output_dir, exist_ok=True)
-        narrative_path = os.path.join(output_dir, f"{dataset_name}_report.md")
-        visualization_path = os.path.join(output_dir, f"{dataset_name}_correlation.png")
+    # Perform analysis
+    summary_stats = compute_summary_statistics(df)
+    numeric_columns = df.select_dtypes(include=[np.number]).columns
+    outliers = pd.concat([detect_outliers(df, col) for col in numeric_columns])
 
-        # Perform analysis
-        summary_stats = compute_summary_statistics(df)
-        numeric_columns = df.select_dtypes(include=[np.number]).columns
-        outliers = pd.concat([detect_outliers(df, col) for col in numeric_columns])
+    # Generate visualizations
+    if not df[numeric_columns].empty:
+        plot_correlation_matrix(df[numeric_columns], visualization_path)
+        generate_visualizations(df, dataset_name, output_dir)
 
-        # Generate visualizations
-        if not df[numeric_columns].empty:
-            plot_correlation_matrix(df[numeric_columns], visualization_path)
-            generate_visualizations(df, dataset_name, output_dir)
+    # Generate narrative
+    narrative = generate_narrative(summary_stats, outliers, dataset_name)
 
-        # Generate narrative
-        narrative = generate_narrative(summary_stats, outliers, dataset_name)
+    # Save narrative
+    with open(narrative_path, "w") as f:
+        f.write(narrative)
 
-        # Save narrative
-        with open(narrative_path, "w", encoding="utf-8") as f:
-            f.write(narrative)
-
-        logging.info(f"Analysis complete for {dataset_name}. Outputs saved in {output_dir}")
-    except Exception as e:
-        logging.error(f"Error processing {file_path}: {e}")
-
+    print(f"Analysis complete for {dataset_name}. Outputs saved in {output_dir}")
 
 # --- Main Function ---
-def main(input_path, output_dir="results"):
+def main(csv_file, output_dir="results"):
     """Main entry point for analysis."""
     try:
-        os.makedirs(output_dir, exist_ok=True)
-        if os.path.isdir(input_path):
-            for file in os.listdir(input_path):
-                if file.endswith(".csv"):
-                    process_dataset(os.path.join(input_path, file), output_dir)
-        else:
-            process_dataset(input_path, output_dir)
-
-        validate_metadata(output_dir)
-        check_visual_output(output_dir)
+        os.makedirs(output_dir, exist_ok=True)  # Ensure the directory exists
+        print(f"Processing dataset: {csv_file}")
+        print(f"Saving results to: {output_dir}")
+        process_dataset(csv_file, output_dir)
     except Exception as e:
-        logging.error(f"Error in main processing: {e}")
+        print(f"Error processing {csv_file}: {e}")
+
+def process_dataset(csv_file, output_dir):
+    # Add your dataset processing logic here
+    print(f"Dataset {csv_file} is being processed. Results will be saved in {output_dir}.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Autolysis script for CSV analysis.")
-    parser.add_argument("input_path", help="Path to the input CSV file or directory.")
+    parser.add_argument("csv_file", help="Path to the input CSV file.")
     parser.add_argument(
         "output_dir",
         nargs="?",
@@ -182,4 +122,4 @@ if __name__ == "__main__":
         help="Path to the output directory (default: 'results')."
     )
     args = parser.parse_args()
-    main(args.input_path, args.output_dir)
+    main(args.csv_file, args.output_dir)
