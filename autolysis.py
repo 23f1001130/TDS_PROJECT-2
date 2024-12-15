@@ -8,6 +8,7 @@
 #   "ipykernel",
 #   "tabulate",
 #   "importlib",
+#    "pandas",
 #   "chardet"  # Add all packages used in the script
 # ]
 
