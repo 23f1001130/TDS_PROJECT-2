@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 import requests
 import json
 import openai  # Ensure this library is installed: pip install openai
+import argparse
 
 # -----------------------------------------------------------
 # Code Quality Evaluation Enhancements
@@ -111,11 +112,7 @@ def generate_visualizations(correlation_matrix, outlier_counts, df, output_direc
     outlier_counts (pd.Series): Counts of outliers for each column.
     df (pd.DataFrame): Original dataset.
     output_directory (str): Directory to save visualizations.
-
-    Returns:
-    tuple: Paths to saved visualizations.
     """
-    # Ensure output directory exists
     os.makedirs(output_directory, exist_ok=True)
 
     # Correlation heatmap
@@ -124,7 +121,7 @@ def generate_visualizations(correlation_matrix, outlier_counts, df, output_direc
         sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
         plt.title('Correlation Heatmap')
         correlation_matrix_path = os.path.join(output_directory, 'correlation_matrix.png')
-        plt.savefig(correlation_matrix_path)
+        plt.savefig(correlation_matrix_path, dpi=300)  # Save with higher resolution
         plt.close()
     else:
         correlation_matrix_path = None
@@ -135,7 +132,7 @@ def generate_visualizations(correlation_matrix, outlier_counts, df, output_direc
         outlier_counts.plot(kind='bar', color='crimson')
         plt.title('Outlier Counts by Column')
         outliers_path = os.path.join(output_directory, 'outliers.png')
-        plt.savefig(outliers_path)
+        plt.savefig(outliers_path, dpi=300)  # Save with higher resolution
         plt.close()
     else:
         outliers_path = None
@@ -148,7 +145,7 @@ def generate_visualizations(correlation_matrix, outlier_counts, df, output_direc
         sns.histplot(df[first_numeric_column], kde=True, color='blue', bins=30)
         plt.title(f'Distribution of {first_numeric_column}')
         distribution_path = os.path.join(output_directory, 'distribution.png')
-        plt.savefig(distribution_path)
+        plt.savefig(distribution_path, dpi=300)  # Save with higher resolution
         plt.close()
     else:
         distribution_path = None
@@ -162,14 +159,8 @@ def generate_visualizations(correlation_matrix, outlier_counts, df, output_direc
 def write_readme(summary, missing_data, corr_matrix, outlier_counts, df, output_directory):
     """
     Create a README.md summarizing the analysis and visualizations.
-
-    Parameters:
-    summary (tuple): Numerical and categorical summaries.
-    missing_data (pd.Series): Counts of missing data.
-    corr_matrix (pd.DataFrame): Correlation matrix of numeric data.
-    outlier_counts (pd.Series): Counts of outliers for each column.
-    df (pd.DataFrame): Original dataset.
-    output_directory (str): Directory to save the README.
+    
+    Ensures that the analysis is formatted properly and written to the README file.
     """
     readme_path = os.path.join(output_directory, 'README.md')
     with open(readme_path, 'w') as readme:
@@ -191,9 +182,9 @@ def write_readme(summary, missing_data, corr_matrix, outlier_counts, df, output_
 
         # Mention visualizations
         readme.write("### Visual Representations\n")
-        readme.write("- Correlation heatmap saved as 'correlation_matrix.png'\n")
+        readme.write(f"- Correlation heatmap saved as 'correlation_matrix.png'\n")
         if outlier_counts.sum() > 0:
-            readme.write("- Outlier counts saved as 'outliers.png'\n")
+            readme.write(f"- Outlier counts saved as 'outliers.png'\n")
         readme.write("- Numeric distribution plot saved as 'distribution.png'\n")
 
         # Additional insights
@@ -203,18 +194,27 @@ def write_readme(summary, missing_data, corr_matrix, outlier_counts, df, output_
 
 
 # -----------------------------------------------------------
+# Function to parse command-line arguments
+# -----------------------------------------------------------
+def parse_arguments():
+    """
+    Parse command-line arguments for input CSV file and output directory.
+    """
+    parser = argparse.ArgumentParser(description="Run exploratory data analysis on a dataset.")
+    parser.add_argument('input_file', type=str, help="Path to the input CSV file")
+    parser.add_argument('--output_dir', type=str, default='output', help="Directory to save results")
+    return parser.parse_args()
+
+
+# -----------------------------------------------------------
 # Main function to execute the full workflow
 # -----------------------------------------------------------
-def main(input_file):
-    """
-    Main function to execute data analysis and visualization workflow.
+def main():
+    args = parse_arguments()
 
-    Parameters:
-    input_file (str): Path to the input CSV file.
-    """
-    # Load dataset
+    # Load dataset with error handling
     try:
-        df = pd.read_csv(input_file, encoding='ISO-8859-1')
+        df = pd.read_csv(args.input_file, encoding='ISO-8859-1')
     except Exception as e:
         print(f"Error loading dataset: {e}")
         return
@@ -226,19 +226,14 @@ def main(input_file):
     outliers = find_outliers(df)
 
     # Create visualizations
-    output_dir = "output"
-    generate_visualizations(correlation_matrix, outliers, df, output_dir)
+    generate_visualizations(correlation_matrix, outliers, df, args.output_dir)
 
     # Write README
-    write_readme([numeric_summary, categorical_summary], missing_data, correlation_matrix, outliers, df, output_dir)
+    write_readme([numeric_summary, categorical_summary], missing_data, correlation_matrix, outliers, df, args.output_dir)
 
 
 # -----------------------------------------------------------
 # Entry point for the script
 # -----------------------------------------------------------
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) < 2:
-        print("Usage: python script.py <dataset_path>")
-        sys.exit(1)
-    main(sys.argv[1])
+    main()
