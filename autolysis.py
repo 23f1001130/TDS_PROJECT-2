@@ -109,16 +109,19 @@ def generate_report(stats, missing_vals, correlations, anomalies, save_directory
 def run_analysis(data_path):
     print("Initializing data analysis pipeline...")
     try:
-        print(f"Attempting to load file: {data_path} with encoding='utf-8'")
+        print(f"Attempting to load file: {data_path}")
+        # Try loading the file
         data = pd.read_csv(data_path, encoding='utf-8', encoding_errors='replace')
         print("Data loaded successfully.")
-    except UnicodeDecodeError:
-        print("UTF-8 decoding failed. Trying alternate encodings...")
+        print("First few rows of the dataset:\n", data.head())
+    except pd.errors.ParserError as e:
+        print(f"ParserError: {e}")
+        print("Trying alternate delimiters...")
         try:
-            data = pd.read_csv(data_path, encoding='ISO-8859-1')
-            print("Data loaded successfully with ISO-8859-1 encoding.")
+            data = pd.read_csv(data_path, encoding='utf-8', delimiter=';', encoding_errors='replace')
+            print("Data loaded successfully with alternate delimiter.")
         except Exception as e:
-            print(f"Error loading data with alternate encodings: {e}")
+            print(f"Error loading data with alternate delimiter: {e}")
             return
     except Exception as e:
         print(f"Error loading data: {e}")
@@ -131,6 +134,7 @@ def run_analysis(data_path):
     heatmap_path, outlier_plot_path, dist_plot_path = create_visualizations(correlations, anomalies, data, output_directory)
     generate_report(stats, missing, correlations, anomalies, output_directory, dist_plot_path)
     print("Pipeline execution complete.")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Automated Dataset Analysis Tool")
