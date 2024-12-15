@@ -7,7 +7,7 @@
 #   "pandas",
 #   "requests",
 #   "openai",
-#   "ipykernal",
+#   "ipykernel",
 #   "chardet"  # Add all packages used in the script
 # ]
 # ///
