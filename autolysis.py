@@ -9,6 +9,7 @@
 #   "scipy",
 #   "openai",
 #   "scikit-learn",
+#   "tabulate",
 #   "requests",
 #   "ipykernel",  # Added ipykernel
 # ]
