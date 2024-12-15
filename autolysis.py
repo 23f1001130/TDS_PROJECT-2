@@ -27,12 +27,14 @@ import argparse
 # Function: Perform statistical analysis on a dataset
 def summarize_dataset(data):
     print("Performing dataset analysis...")
-    stats_summary = data.describe()
+    stats_summary = data.describe(include='all')
     missing_data = data.isnull().sum()
     numeric_data = data.select_dtypes(include=[np.number])
+    skewness = numeric_data.skew()
+    kurtosis = numeric_data.kurt()
     correlation_matrix = numeric_data.corr() if not numeric_data.empty else pd.DataFrame()
     print("Dataset analysis completed.")
-    return stats_summary, missing_data, correlation_matrix
+    return stats_summary, missing_data, correlation_matrix, skewness, kurtosis
 
 # Function: Identify outliers using the Interquartile Range (IQR) method
 def identify_outliers(data):
@@ -90,8 +92,7 @@ def generate_visuals(correlation_matrix, outlier_data, dataset, output_folder):
     return heatmap_path, outlier_plot_path, distribution_path
 
 # Function: Create a detailed Markdown report
-
-def create_report(stats_summary, missing_data, correlation_matrix, outliers, output_folder):
+def create_report(stats_summary, missing_data, correlation_matrix, skewness, kurtosis, outliers, output_folder):
     print("Compiling report...")
     report_path = os.path.join(output_folder, "Analysis_Report.md")
     try:
@@ -102,6 +103,12 @@ def create_report(stats_summary, missing_data, correlation_matrix, outliers, out
 
             report.write("## Missing Data\n")
             report.write(missing_data.to_markdown() + "\n\n")
+
+            report.write("## Skewness\n")
+            report.write(skewness.to_markdown() + "\n\n")
+
+            report.write("## Kurtosis\n")
+            report.write(kurtosis.to_markdown() + "\n\n")
 
             report.write("## Correlation Matrix\n")
             if not correlation_matrix.empty:
@@ -162,7 +169,7 @@ def main(file_path):
         print(f"Error loading file: {e}")
         return
 
-    stats, missing, corr_matrix = summarize_dataset(dataset)
+    stats, missing, corr_matrix, skewness, kurtosis = summarize_dataset(dataset)
     outliers = identify_outliers(dataset)
 
     output_directory = "./output"
@@ -172,7 +179,7 @@ def main(file_path):
 
     story = query_language_model("Generate a creative summary based on the analysis.", f"Stats: {stats}\nMissing: {missing}")
 
-    create_report(stats, missing, corr_matrix, outliers, output_directory)
+    create_report(stats, missing, corr_matrix, skewness, kurtosis, outliers, output_directory)
 
     story_path = os.path.join(output_directory, "Data_Narrative.txt")
     with open(story_path, "w") as narrative_file:
