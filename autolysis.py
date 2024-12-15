@@ -14,120 +14,116 @@
 #   "scipy"
 # ]
 # ///
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-import numpy as np
-from pathlib import Path
-import plotly.express as px
+import os
+import argparse
 
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# --- Helper Functions ---
 def compute_summary_statistics(df):
     """Generate descriptive statistics for the dataset."""
-    stats = df.describe(include='all').fillna('N/A')
-    additional_stats = {
-        'Skewness': df.skew(numeric_only=True).to_dict(),
-        'Kurtosis': df.kurt(numeric_only=True).to_dict()
-    }
-    return stats, additional_stats
+    return df.describe(include='all').fillna('N/A')
 
-def detect_outliers(df, column):
-    """Detect outliers using the IQR method."""
-    Q1 = df[column].quantile(0.25)
-    Q3 = df[column].quantile(0.75)
+def detect_outliers(df, col):
+    """Detect outliers using the Interquartile Range (IQR) method."""
+    Q1 = df[col].quantile(0.25)
+    Q3 = df[col].quantile(0.75)
     IQR = Q3 - Q1
-    lower_bound = Q1 - 1.5 * IQR
-    upper_bound = Q3 + 1.5 * IQR
-    outliers = df[(df[column] < lower_bound) | (df[column] > upper_bound)]
-    return outliers
+    outliers = df[(df[col] < Q1 - 1.5 * IQR) | (df[col] > Q3 + 1.5 * IQR)]
+    return outliers if not outliers.empty else pd.DataFrame({'Message': ['No outliers detected']})
 
-def generate_visualizations(df, output_path):
-    """Generate and save visualizations."""
+def plot_correlation_matrix(df, output_path):
+    """Generate and save a correlation matrix heatmap."""
+    plt.figure(figsize=(6, 6))
+    sns.heatmap(df.corr(), annot=True, cmap='coolwarm')
+    plt.title("Correlation Matrix")
+    plt.savefig(output_path)
+    plt.close()
+
+def generate_narrative(summary_stats, outliers, dataset_name):
+    """Generate a narrative report for the dataset."""
+    narrative = f"# Report for {dataset_name}\n\n"
+    narrative += "## Summary Statistics\n" + summary_stats.to_markdown() + "\n\n"
+    if not outliers.empty:
+        narrative += "## Outliers Detected\n" + outliers.to_markdown() + "\n\n"
+    else:
+        narrative += "## Outliers Detected\nNo significant outliers found.\n\n"
+    return narrative
+
+def generate_visualizations(df, dataset_name, output_dir):
+    """Generate various visualizations for the dataset."""
     numeric_columns = df.select_dtypes(include=[np.number]).columns
 
-    if numeric_columns.empty:
-        print("No numeric columns found. Skipping visualizations.")
-        return
-
-    # Correlation heatmap
-    correlation_matrix = df[numeric_columns].corr()
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm')
-    plt.title('Correlation Heatmap')
-    plt.savefig(output_path / 'correlation_heatmap.png')
+    # Pair plot
+    pairplot_path = os.path.join(output_dir, f"{dataset_name}_pairplot.png")
+    sns.pairplot(df[numeric_columns])
+    plt.savefig(pairplot_path)
     plt.close()
 
-    # Pair plot (limited for efficiency)
-    if len(numeric_columns) > 5:
-        sns.pairplot(df[numeric_columns[:5]])
-    else:
-        sns.pairplot(df[numeric_columns])
-    plt.savefig(output_path / 'pairplot.png')
+    # Boxplot for outliers
+    boxplot_path = os.path.join(output_dir, f"{dataset_name}_boxplot.png")
+    df[numeric_columns].plot(kind='box', figsize=(6,6))
+    plt.title("Boxplot of Numeric Features")
+    plt.savefig(boxplot_path)
     plt.close()
 
-    # Interactive visualization using Plotly
-    fig = px.imshow(correlation_matrix, text_auto=True, color_continuous_scale='Viridis')  # Changed 'coolwarm' to 'Viridis'
-    fig.write_html(str(output_path / 'correlation_heatmap_interactive.html'))
+# --- Main Processing Function ---
+def process_dataset(file_path, output_dir):
+    """Process a dataset: analyze, visualize, and save outputs."""
+    # Load the dataset
+    dataset_name = os.path.splitext(os.path.basename(file_path))[0]
+    df = pd.read_csv(file_path)
 
+    # Create output directories
+    os.makedirs(output_dir, exist_ok=True)
+    narrative_path = os.path.join(output_dir, f"{dataset_name}_report.md")
+    visualization_path = os.path.join(output_dir, f"{dataset_name}_correlation.png")
 
-def generate_report(df, output_path):
-    """Generate a markdown report for the dataset."""
-    output_path.mkdir(parents=True, exist_ok=True)
+    # Perform analysis
+    summary_stats = compute_summary_statistics(df)
+    numeric_columns = df.select_dtypes(include=[np.number]).columns
+    outliers = pd.concat([detect_outliers(df, col) for col in numeric_columns])
 
-    # Compute statistics
-    stats, additional_stats = compute_summary_statistics(df)
+    # Generate visualizations
+    if not df[numeric_columns].empty:
+        plot_correlation_matrix(df[numeric_columns], visualization_path)
+        generate_visualizations(df, dataset_name, output_dir)
 
-    # Write report
-    report_path = output_path / 'report.md'
-    with open(report_path, 'w', encoding='utf-8') as f:  # Added encoding='utf-8'
-        f.write("# Analysis Report\n\n")
-        f.write("## Summary Statistics\n")
-        f.write(stats.to_markdown() + "\n\n")
+    # Generate narrative
+    narrative = generate_narrative(summary_stats, outliers, dataset_name)
 
-        f.write("## Additional Statistics\n")
-        for key, value in additional_stats.items():
-            f.write(f"### {key}\n")
-            f.write(pd.DataFrame(value, index=[0]).to_markdown() + "\n\n")
+    # Save narrative
+    with open(narrative_path, "w") as f:
+        f.write(narrative)
 
-        # Outlier detection
-        numeric_columns = df.select_dtypes(include=[np.number]).columns
-        outliers_list = [detect_outliers(df, col) for col in numeric_columns]
-        outliers = pd.concat(outliers_list) if any(not o.empty for o in outliers_list) else pd.DataFrame()
-        if not outliers.empty:
-            f.write("## Outliers\n")
-            f.write(outliers.to_markdown() + "\n\n")
-        else:
-            f.write("## Outliers\nNo outliers detected.\n\n")
+    print(f"Analysis complete for {dataset_name}. Outputs saved in {output_dir}")
 
-    print(f"Report generated: {report_path}")
-
-
-def main(input_file):
-    """Main function to analyze the dataset."""
-    output_path = Path("output") / Path(input_file).stem
+# --- Main Function ---
+def main(csv_file, output_dir="results"):
+    """Main entry point for analysis."""
     try:
-        df = pd.read_csv(input_file, encoding='utf-8')  # Attempt to read with UTF-8
-    except UnicodeDecodeError:
-        print(f"UTF-8 encoding failed for {input_file}. Retrying with 'latin1' encoding...")
-        try:
-            df = pd.read_csv(input_file, encoding='latin1')  # Fallback to latin1
-        except Exception as e:
-            print(f"Error reading file {input_file} with fallback encoding: {e}")
-            return
+        os.makedirs(output_dir, exist_ok=True)  # Ensure the directory exists
+        print(f"Processing dataset: {csv_file}")
+        print(f"Saving results to: {output_dir}")
+        process_dataset(csv_file, output_dir)
+    except Exception as e:
+        print(f"Error processing {csv_file}: {e}")
 
-    # Handle datasets with excessive missing data
-    missing_data = df.isnull().sum() / len(df) * 100
-    if missing_data.max() > 50:
-        print(f"Dataset '{input_file}' contains too many missing values. Consider cleaning.")
-        return
-
-    generate_report(df, output_path)
-    generate_visualizations(df, output_path)
-    print(f"Analysis completed successfully for {input_file}.")
-
+def process_dataset(csv_file, output_dir):
+    # Add your dataset processing logic here
+    print(f"Dataset {csv_file} is being processed. Results will be saved in {output_dir}.")
 
 if __name__ == "__main__":
-    # Example usage
-    input_files = ["goodreads.csv", "happiness.csv", "media.csv"]
-    for file in input_files:
-        print(f"Processing {file}...")
-        main(file)
+    parser = argparse.ArgumentParser(description="Autolysis script for CSV analysis.")
+    parser.add_argument("csv_file", help="Path to the input CSV file.")
+    parser.add_argument(
+        "output_dir",
+        nargs="?",
+        default="results",  # Default value for output_dir
+        help="Path to the output directory (default: 'results')."
+    )
+    args = parser.parse_args()
+    main(args.csv_file, args.output_dir)
