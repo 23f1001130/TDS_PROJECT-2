@@ -1,5 +1,3 @@
-
-# /// script
 # requires-python = ">=3.11"
 # dependencies = [
 #   "seaborn",
@@ -8,11 +6,11 @@
 #   "requests",
 #   "openai",
 #   "ipykernel",
-#    "tabulate",
-#    "importlib",
+#   "tabulate",
+#   "importlib",
 #   "chardet"  # Add all packages used in the script
 # ]
-# ///
+
 import os
 import pandas as pd
 import numpy as np
@@ -135,21 +133,20 @@ def main(csv_file, output_dir="."):
         output_dir (str): Path to save the analysis outputs.
     """
     # Load the dataset
-   try:
-    df = pd.read_csv(csv_file, encoding='ISO-8859-1')
-except FileNotFoundError:
-    print(f"Error: File not found. Please check the path: {csv_file}")
-    return
-except pd.errors.ParserError as e:
-    print(f"Error parsing the file: {e}. Check for delimiter mismatches or irregular rows.")
-    return
-except UnicodeDecodeError:
-    print(f"Error decoding the file. Try using a different encoding (e.g., UTF-8).")
-    return
-except Exception as e:
-    print(f"Unexpected error: {e}")
-    return
-
+    try:
+        df = pd.read_csv(csv_file, encoding='ISO-8859-1')
+    except FileNotFoundError:
+        print(f"Error: File not found. Please check the path: {csv_file}")
+        return
+    except pd.errors.ParserError as e:
+        print(f"Error parsing the file: {e}. Check for delimiter mismatches or irregular rows.")
+        return
+    except UnicodeDecodeError:
+        print(f"Error decoding the file. Try using a different encoding (e.g., UTF-8).")
+        return
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return
 
     # Perform analysis
     summary_stats, missing_values, corr_matrix = data_summary(df)
