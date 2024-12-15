@@ -21,6 +21,24 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import argparse
+import requests
+from io import StringIO
+
+def load_remote_csv(url):
+    """
+    Function to download and load a CSV file from a remote URL.
+    """
+    try:
+        print(f"Downloading data from: {url}")
+        response = requests.get(url)
+        response.raise_for_status()  # Raise HTTP errors
+        csv_data = StringIO(response.text)
+        data = pd.read_csv(csv_data)
+        print("Data successfully loaded from remote URL.")
+        return data
+    except Exception as e:
+        print(f"Error loading remote CSV: {e}")
+        return None
 
 def summarize_dataset(data):
     print("Generating dataset summary...")
@@ -108,39 +126,33 @@ def generate_report(stats, missing_vals, correlations, anomalies, save_directory
 
 def run_analysis(data_path):
     print("Initializing data analysis pipeline...")
+    data = None
+
     try:
-        print(f"Attempting to load file: {data_path}")
-        with open(data_path, 'r') as f:
-            for i, line in enumerate(f):
-                print(f"Line {i + 1}: {line.strip()}")
-                if i >= 10:  # Print the first 10 lines
-                    break
-        data = pd.read_csv(data_path, encoding='utf-8', encoding_errors='replace')
-        print("Data loaded successfully.")
+        if data_path.startswith("http"):
+            # Load from URL
+            data = load_remote_csv(data_path)
+        else:
+            # Load local file
+            print(f"Attempting to load file: {data_path}")
+            data = pd.read_csv(data_path, encoding='utf-8', encoding_errors='replace')
+            print("Data loaded successfully.")
     except pd.errors.ParserError as e:
         print(f"ParserError: {e}")
     except Exception as e:
         print(f"Error loading data: {e}")
         return
 
-        try:
-            data = pd.read_csv(data_path, encoding='utf-8', delimiter=';', encoding_errors='replace')
-            print("Data loaded successfully with alternate delimiter.")
-        except Exception as e:
-            print(f"Error loading data with alternate delimiter: {e}")
-            return
-    except Exception as e:
-        print(f"Error loading data: {e}")
-        return
+    if data is not None:
+        stats, missing, correlations = summarize_dataset(data)
+        anomalies = identify_outliers(data)
 
-    stats, missing, correlations = summarize_dataset(data)
-    anomalies = identify_outliers(data)
-
-    output_directory = "results"
-    heatmap_path, outlier_plot_path, dist_plot_path = create_visualizations(correlations, anomalies, data, output_directory)
-    generate_report(stats, missing, correlations, anomalies, output_directory, dist_plot_path)
-    print("Pipeline execution complete.")
-
+        output_directory = "results"
+        heatmap_path, outlier_plot_path, dist_plot_path = create_visualizations(correlations, anomalies, data, output_directory)
+        generate_report(stats, missing, correlations, anomalies, output_directory, dist_plot_path)
+        print("Pipeline execution complete.")
+    else:
+        print("No valid data to analyze.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Automated Dataset Analysis Tool")
