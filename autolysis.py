@@ -12,7 +12,6 @@
 #   "ipykernel",
 # ]
 # ///
-
 import os
 import pandas as pd
 import numpy as np
@@ -25,31 +24,39 @@ import openai  # Ensure this library is installed: pip install openai
 # -----------------------------------------------------------
 # Function to analyze dataset properties and statistics
 # -----------------------------------------------------------
+def handle_data_types(df):
+    """
+    Automatically analyze both numeric and categorical data types.
+    """
+    numeric_data = df.select_dtypes(include=[np.number])
+    categorical_data = df.select_dtypes(exclude=[np.number])
+
+    # Handle numeric data analysis
+    numeric_summary = numeric_data.describe()
+    correlation_matrix = numeric_data.corr()
+
+    # Handle categorical data analysis
+    categorical_summary = categorical_data.describe(include='all')
+
+    return numeric_summary, categorical_summary, correlation_matrix
+
+
 def perform_analysis(df):
     """
     Analyze the dataset for basic statistics, missing data, and correlations.
     """
     print("Performing dataset analysis...")  # Debug message
     
-    # Describe numeric columns for key statistics
-    numerical_summary = df.describe()
-    print("Generated numerical summary.")  # Debug
+    # Automatically handle data types
+    numeric_summary, categorical_summary, correlation_matrix = handle_data_types(df)
+    print("Generated numerical and categorical summaries.")  # Debug
     
     # Identify missing data
     missing_data = df.isnull().sum()
     print("Identified missing data counts.")  # Debug
     
-    # Create correlation matrix for numeric columns
-    numeric_data = df.select_dtypes(include=[np.number])
-    if numeric_data.empty:
-        correlation_matrix = pd.DataFrame()
-        print("No numeric columns found for correlation analysis.")  # Debug
-    else:
-        correlation_matrix = numeric_data.corr()
-        print("Generated correlation matrix.")  # Debug
-    
     print("Dataset analysis completed.")  # Debug
-    return numerical_summary, missing_data, correlation_matrix
+    return numeric_summary, categorical_summary, missing_data, correlation_matrix
 
 
 # -----------------------------------------------------------
@@ -57,7 +64,7 @@ def perform_analysis(df):
 # -----------------------------------------------------------
 def find_outliers(df):
     """
-    Detect outliers in the dataset using the IQR method.
+    Detect outliers in the dataset using the IQR method for numeric data.
     """
     print("Detecting outliers in numeric data...")  # Debug
     
@@ -136,7 +143,7 @@ def generate_visualizations(correlation_matrix, outlier_counts, df, output_direc
 # -----------------------------------------------------------
 # Function to generate README file summarizing results
 # -----------------------------------------------------------
-def write_readme(summary, missing_data, corr_matrix, outlier_counts, output_directory):
+def write_readme(summary, missing_data, corr_matrix, outlier_counts, df, output_directory):
     """
     Create a README.md summarizing the analysis and visualizations.
     """
@@ -150,7 +157,12 @@ def write_readme(summary, missing_data, corr_matrix, outlier_counts, output_dire
 
             # Adding numerical summaries
             readme.write("### Summary Statistics\n")
-            readme.write(summary.to_string())
+            readme.write(summary[0].to_string())
+            readme.write("\n\n")
+            
+            # Adding categorical summaries
+            readme.write("### Categorical Data Summary\n")
+            readme.write(summary[1].to_string())
             readme.write("\n\n")
             
             # Missing data overview
@@ -164,6 +176,11 @@ def write_readme(summary, missing_data, corr_matrix, outlier_counts, output_dire
             if outlier_counts.sum() > 0:
                 readme.write("- Outlier counts saved as 'outliers.png'\n")
             readme.write("- Numeric distribution plot saved as 'distribution.png'\n")
+
+            # Additional insights
+            readme.write("\n\n## Key Insights\n")
+            readme.write(f"- Total number of rows: {df.shape[0]}\n")
+            readme.write(f"- Columns with missing values: {missing_data[missing_data > 0]}\n")
         
         print("README file created successfully.")  # Debug
     except Exception as e:
@@ -188,7 +205,7 @@ def main(input_file):
         return
 
     # Perform analysis
-    summary, missing_data, correlation_matrix = perform_analysis(df)
+    numeric_summary, categorical_summary, missing_data, correlation_matrix = perform_analysis(df)
 
     # Detect outliers
     outliers = find_outliers(df)
@@ -199,7 +216,7 @@ def main(input_file):
     generate_visualizations(correlation_matrix, outliers, df, output_dir)
 
     # Write README
-    write_readme(summary, missing_data, correlation_matrix, outliers, output_dir)
+    write_readme([numeric_summary, categorical_summary], missing_data, correlation_matrix, outliers, df, output_dir)
 
     print("Workflow completed successfully!")  # Debug
 
