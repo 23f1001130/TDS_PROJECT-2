@@ -1,14 +1,14 @@
-# /// Script metadata
-# python-version-required = ">=3.9"
-# library-dependencies = [
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
 #   "pandas",
-#   "numpy",
-#   "matplotlib",
 #   "seaborn",
+#   "matplotlib",
+#   "numpy",
 #   "scipy",
 #   "openai",
-#   "requests",
 #   "scikit-learn",
+#   "requests",
 #   "ipykernel",
 # ]
 # ///
@@ -20,179 +20,150 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import requests
 import json
-import openai
+import openai  # Ensure this library is installed: pip install openai
 
-# Function to process and analyze data, checking its overall structure and properties
-def analyze_dataset(dataset):
-    print("Starting analysis of the dataset.")
-    stats_summary = dataset.describe(include='all')  # Summary for numerical and categorical columns
-    null_counts = dataset.isnull().sum()  # Calculate missing data for each column
-    if dataset.empty:
-        print("Warning: Dataset is empty.")
-        correlation_data = pd.DataFrame()
-    else:
-        correlation_data = dataset.corr()  # Correlation matrix for numeric columns
-    print("Dataset analysis completed.")
-    return stats_summary, null_counts, correlation_data
+# Function to analyze dataset properties and basic statistics
+def perform_analysis(df):
+    print("Performing dataset analysis...")  # Debug message
+    # Generating statistical summaries for numeric data
+    numerical_summary = df.describe()
+
+    # Identifying missing data counts
+    missing_data = df.isnull().sum()
+
+    # Extracting numerical columns for correlation matrix calculation
+    numeric_data = df.select_dtypes(include=[np.number])
+    correlation_matrix = numeric_data.corr() if not numeric_data.empty else pd.DataFrame()
+
+    print("Dataset analysis completed.")  # Debug message
+    return numerical_summary, missing_data, correlation_matrix
 
 
-# Function to detect potential outliers in numerical columns using IQR
-def detect_outliers_iqr(dataframe):
-    print("Detecting outliers using interquartile range (IQR)...")
-    numerical_data = dataframe.select_dtypes(include=[np.number])
-    Q1 = numerical_data.quantile(0.25)
-    Q3 = numerical_data.quantile(0.75)
-    IQR_values = Q3 - Q1
-    outlier_counts = ((numerical_data < (Q1 - 1.5 * IQR_values)) | (numerical_data > (Q3 + 1.5 * IQR_values))).sum()
-    print("Outlier detection completed.")
+# Function to detect outliers using IQR methodology
+def find_outliers(df):
+    print("Detecting outliers in numeric data...")  # Debug message
+    # Isolating numeric columns for outlier detection
+    numeric_data = df.select_dtypes(include=[np.number])
+
+    # Computing interquartile range (IQR)
+    Q1 = numeric_data.quantile(0.25)
+    Q3 = numeric_data.quantile(0.75)
+    IQR = Q3 - Q1
+
+    # Identifying data points outside the acceptable range
+    outlier_counts = ((numeric_data < (Q1 - 1.5 * IQR)) | (numeric_data > (Q3 + 1.5 * IQR))).sum()
+
+    print("Outlier detection complete.")  # Debug message
     return outlier_counts
 
 
-# Function to create various plots for better data understanding
-def generate_plots(correlations, outliers_data, dataframe, output_dir):
-    print("Generating plots for the dataset...")
-    # Create a correlation heatmap
-    plt.figure(figsize=(12, 10))
-    sns.heatmap(correlations, annot=True, fmt=".2f", cmap="coolwarm")
-    heatmap_file = os.path.join(output_dir, "correlation_heatmap.png")
-    plt.savefig(heatmap_file)
+# Function to generate visual outputs
+def generate_visualizations(correlation_matrix, outlier_counts, df, output_directory):
+    print("Creating data visualizations...")  # Debug message
+    # Correlation matrix heatmap visualization
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
+    plt.title('Correlation Heatmap')
+    correlation_matrix_path = os.path.join(output_directory, 'correlation_matrix.png')
+    plt.savefig(correlation_matrix_path)
     plt.close()
 
-    # Outlier bar chart (if applicable)
-    if not outliers_data.empty and outliers_data.sum() > 0:
-        outliers_data.plot(kind="bar", color="red", title="Outliers per Column")
-        outliers_file = os.path.join(output_dir, "outlier_chart.png")
-        plt.savefig(outliers_file)
+    # Visualizing outliers, if any exist
+    if not outlier_counts.empty and outlier_counts.sum() > 0:
+        plt.figure(figsize=(12, 6))
+        outlier_counts.plot(kind='bar', color='crimson')
+        plt.title('Outlier Counts by Column')
+        plt.xlabel('Columns')
+        plt.ylabel('Number of Outliers')
+        outliers_path = os.path.join(output_directory, 'outliers.png')
+        plt.savefig(outliers_path)
         plt.close()
     else:
-        outliers_file = None
+        print("No significant outliers detected.")  # Debug message
+        outliers_path = None
 
-    # Histogram of the first numerical column
-    numerical_columns = dataframe.select_dtypes(include=[np.number])
-    if not numerical_columns.empty:
-        plt.figure(figsize=(8, 6))
-        sns.histplot(numerical_columns.iloc[:, 0], kde=True, bins=25)
-        histogram_file = os.path.join(output_dir, "numeric_column_histogram.png")
-        plt.savefig(histogram_file)
+    # Generating a distribution plot for the first numeric column
+    numeric_columns = df.select_dtypes(include=[np.number]).columns
+    if len(numeric_columns) > 0:
+        first_numeric_column = numeric_columns[0]
+        plt.figure(figsize=(10, 6))
+        sns.histplot(df[first_numeric_column], kde=True, color='blue', bins=30)
+        plt.title(f'Distribution of {first_numeric_column}')
+        distribution_path = os.path.join(output_directory, 'distribution.png')
+        plt.savefig(distribution_path)
         plt.close()
     else:
-        histogram_file = None
+        print("No numeric columns available for distribution plot.")  # Debug message
+        distribution_path = None
 
-    print("Plot generation completed.")
-    return heatmap_file, outliers_file, histogram_file
-
-
-# Function to create a detailed Markdown report summarizing the dataset
-def create_markdown_report(summary, null_values, corr_matrix, outlier_data, folder_path):
-    print("Compiling Markdown report...")
-    report_path = os.path.join(folder_path, "dataset_summary_report.md")
-    with open(report_path, "w") as md_report:
-        md_report.write("# Dataset Analysis Report\n")
-        md_report.write("## Overview\nThis report summarizes the dataset's properties and insights.\n\n")
-
-        # Adding descriptive statistics
-        md_report.write("### Descriptive Statistics\n")
-        md_report.write(summary.to_markdown() + "\n\n")
-
-        # Adding information about missing data
-        md_report.write("### Missing Data Overview\n")
-        md_report.write(null_values.to_markdown() + "\n\n")
-
-        # Adding a correlation heatmap
-        md_report.write("### Correlation Heatmap\n")
-        md_report.write("![Correlation Heatmap](correlation_heatmap.png)\n\n")
-
-        # Adding outlier counts
-        md_report.write("### Outlier Information\n")
-        if outlier_data.sum() > 0:
-            md_report.write(outlier_data.to_markdown() + "\n")
-            md_report.write("![Outlier Chart](outlier_chart.png)\n\n")
-        else:
-            md_report.write("No outliers detected.\n\n")
-
-        # Histogram visualization
-        md_report.write("### Numeric Column Distribution\n")
-        md_report.write("![Histogram](numeric_column_histogram.png)\n\n")
-
-    print(f"Report successfully saved at {report_path}.")
-    return report_path
+    print("Visualizations generated successfully.")  # Debug message
+    return correlation_matrix_path, outliers_path, distribution_path
 
 
-# AI-enhanced insights generation using the OpenAI GPT API
-def generate_ai_insights(prompt_text, dataset_description):
-    print("Requesting AI-generated insights...")
-    openai_api_key = os.getenv("AIPROXY_TOKEN")
-    if not openai_api_key:
-        print("API key not found. Skipping insights generation.")
-        return "No insights generated due to missing API key."
-
-    headers = {
-        "Authorization": f"Bearer {openai_api_key}",
-        "Content-Type": "application/json"
-    }
-    ai_api_url = "https://aiproxy.sanand.workers.dev/openai/v1/chat/completions"
-
-    payload = {
-        "model": "gpt-4o-mini",
-        "messages": [
-            {"role": "system", "content": "You are a data analysis expert."},
-            {"role": "user", "content": f"{prompt_text}\nContext:\n{dataset_description}"}
-        ],
-        "max_tokens": 500,
-        "temperature": 0.7
-    }
-
+# Function to write the analysis results to a README file
+def write_readme(summary, missing_data, corr_matrix, outlier_counts, output_directory):
+    print("Writing analysis results to README.md...")  # Debug message
+    readme_path = os.path.join(output_directory, 'README.md')
     try:
-        response = requests.post(ai_api_url, headers=headers, json=payload)
-        if response.status_code == 200:
-            ai_response = response.json()
-            return ai_response.get("choices", [{}])[0].get("message", {}).get("content", "")
-        else:
-            print(f"API Error: {response.status_code} - {response.text}")
-            return "Failed to retrieve AI insights."
-    except Exception as error_message:
-        print(f"Error during API call: {error_message}")
-        return "AI insights could not be generated."
+        with open(readme_path, 'w') as readme:
+            readme.write("# Dataset Analysis Report\n\n")
+            readme.write("## Summary of the Analysis\n")
+            readme.write("This report provides a comprehensive overview of the dataset, including statistics, outlier detection, and visualizations.\n\n")
+
+            # Adding statistics section
+            readme.write("### Summary Statistics\n")
+            for col in summary.columns:
+                readme.write(f"- {col} Mean: {summary.loc['mean', col]:.2f}\n")
+
+            # Adding missing data section
+            readme.write("### Missing Values\n")
+            for col, count in missing_data.items():
+                readme.write(f"- {col}: {count} missing entries\n")
+
+            # Including visual links
+            readme.write("### Visual Representations\n")
+            readme.write("Refer to the following visualizations for insights:\n")
+            readme.write("- Correlation heatmap: correlation_matrix.png\n")
+            if outlier_counts.sum() > 0:
+                readme.write("- Outliers visualization: outliers.png\n")
+            readme.write("- Distribution plot: distribution.png\n")
+
+        print("README file created successfully.")  # Debug message
+    except Exception as e:
+        print(f"Error writing README file: {e}")
 
 
-# Entry point for the script
-def main(filepath):
-    print("Initializing dataset processing workflow...")
-
+# Main function orchestrating the analysis workflow
+def main(input_file):
+    print("Initiating data analysis workflow...")  # Debug message
     try:
-        # Load the dataset from the specified file
-        data = pd.read_csv(filepath)
-        print("Dataset successfully loaded.")
-    except Exception as file_error:
-        print(f"Error loading file: {file_error}")
+        # Loading the input dataset
+        df = pd.read_csv(input_file, encoding='ISO-8859-1')
+        print("Dataset loaded successfully.")  # Debug message
+    except Exception as e:
+        print(f"Failed to load the dataset: {e}")
         return
 
-    # Create an output folder for all results
-    results_dir = "./analysis_output"
-    os.makedirs(results_dir, exist_ok=True)
+    # Performing data analysis
+    summary, missing_data, correlation_matrix = perform_analysis(df)
 
-    # Perform data analysis
-    statistics, missing_values, correlations = analyze_dataset(data)
-    outliers_detected = detect_outliers_iqr(data)
+    # Detecting outliers
+    outliers = find_outliers(df)
 
-    # Generate visual plots
-    generate_plots(correlations, outliers_detected, data, results_dir)
+    # Creating visualizations
+    output_dir = "."
+    os.makedirs(output_dir, exist_ok=True)
+    generate_visualizations(correlation_matrix, outliers, df, output_dir)
 
-    # Generate AI-driven insights
-    ai_report = generate_ai_insights("Identify trends in this dataset.", str(statistics))
+    # Writing the report
+    write_readme(summary, missing_data, correlation_matrix, outliers, output_dir)
 
-    # Create a Markdown-based summary report
-    report_file_path = create_markdown_report(statistics, missing_values, correlations, outliers_detected, results_dir)
-    with open(report_file_path, "a") as report_append:
-        report_append.write("## AI Insights\n")
-        report_append.write(ai_report)
-
-    print("Dataset processing completed.")
+    print("Data analysis workflow completed successfully.")  # Debug message
 
 
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 2:
-        print("Usage: python script.py <path_to_data_file>")
-    else:
-        main(sys.argv[1])
+        print("Usage: python script.py <dataset_path>")
+        sys.exit(1)
+    main(sys.argv[1])
