@@ -110,13 +110,19 @@ def run_analysis(data_path):
     print("Initializing data analysis pipeline...")
     try:
         print(f"Attempting to load file: {data_path}")
-        # Try loading the file
+        with open(data_path, 'r') as f:
+            for i, line in enumerate(f):
+                print(f"Line {i + 1}: {line.strip()}")
+                if i >= 10:  # Print the first 10 lines
+                    break
         data = pd.read_csv(data_path, encoding='utf-8', encoding_errors='replace')
         print("Data loaded successfully.")
-        print("First few rows of the dataset:\n", data.head())
     except pd.errors.ParserError as e:
         print(f"ParserError: {e}")
-        print("Trying alternate delimiters...")
+    except Exception as e:
+        print(f"Error loading data: {e}")
+        return
+
         try:
             data = pd.read_csv(data_path, encoding='utf-8', delimiter=';', encoding_errors='replace')
             print("Data loaded successfully with alternate delimiter.")
