@@ -148,9 +148,14 @@ def main(input_file):
 
 if __name__ == "__main__":
     import argparse
+    from pathlib import Path
 
     parser = argparse.ArgumentParser(description="Dataset Analysis Tool")
     parser.add_argument("input_file", type=str, help="Path to the input CSV file")
     args = parser.parse_args()
 
-    main(args.input_file)
+    file_path = Path(args.input_file)
+    if not file_path.is_file():
+        print(f"Error: File '{file_path}' does not exist.")
+    else:
+        main(str(file_path))
