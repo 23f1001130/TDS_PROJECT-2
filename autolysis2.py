@@ -12,6 +12,7 @@
 # ///
 
 import pandas as pd
+import os
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
@@ -116,6 +117,10 @@ def generate_report(df, output_path):
 
 def main(input_file):
     """Main function to analyze the dataset."""
+    if not os.path.isfile(input_file):
+        print(f"Error: File '{input_file}' not found.")
+        return
+
     output_path = Path("output") / Path(input_file).stem
     try:
         encoding = detect_encoding(input_file)
@@ -125,6 +130,7 @@ def main(input_file):
         print(f"Error reading file {input_file}: {e}")
         logging.error(f"Error reading file {input_file}: {e}")
         return
+
 
     # Handle missing data
     missing_data = df.isnull().sum() / len(df) * 100
