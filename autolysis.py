@@ -21,141 +21,144 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import argparse
-import requests
-from io import StringIO
+from datetime import datetime
+import logging
 
-def load_remote_csv(url):
-    """
-    Function to download and load a CSV file from a remote URL.
-    """
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.FileHandler("analysis.log"), logging.StreamHandler()]
+)
+
+# Function to load a dataset from a local file or URL
+def load_csv(file_path):
     try:
-        print(f"Downloading data from: {url}")
-        response = requests.get(url)
-        response.raise_for_status()  # Raise HTTP errors
-        csv_data = StringIO(response.text)
-        data = pd.read_csv(csv_data)
-        print("Data successfully loaded from remote URL.")
-        return data
-    except Exception as e:
-        print(f"Error loading remote CSV: {e}")
-        return None
-
-def summarize_dataset(data):
-    print("Generating dataset summary...")
-    stats = data.describe()
-    missing = data.isnull().sum()
-    numeric_data = data.select_dtypes(include=[np.number])
-    correlations = numeric_data.corr() if not numeric_data.empty else pd.DataFrame()
-    print("Summary generated.")
-    return stats, missing, correlations
-
-def identify_outliers(data):
-    print("Detecting anomalies...")
-    numeric_cols = data.select_dtypes(include=[np.number])
-    q1 = numeric_cols.quantile(0.25)
-    q3 = numeric_cols.quantile(0.75)
-    iqr = q3 - q1
-    outlier_counts = ((numeric_cols < (q1 - 1.5 * iqr)) | (numeric_cols > (q3 + 1.5 * iqr))).sum()
-    print("Anomaly detection complete.")
-    return outlier_counts
-
-def create_visualizations(correlation_matrix, anomaly_counts, data, save_directory):
-    print("Creating data visualizations...")
-    os.makedirs(save_directory, exist_ok=True)
-
-    plt.figure(figsize=(6, 6))
-    sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
-    plt.title('Correlation Heatmap')
-    heatmap_path = os.path.join(save_directory, 'correlation_heatmap.png')
-    plt.savefig(heatmap_path)
-    plt.close()
-
-    if not anomaly_counts.empty and anomaly_counts.sum() > 0:
-        plt.figure(figsize=(6, 6))
-        anomaly_counts.plot(kind='bar', color='orange')
-        plt.title('Outlier Analysis')
-        plt.xlabel('Columns')
-        plt.ylabel('Outlier Count')
-        outlier_plot_path = os.path.join(save_directory, 'outlier_analysis.png')
-        plt.savefig(outlier_plot_path)
-        plt.close()
-    else:
-        outlier_plot_path = None
-
-    numeric_cols = data.select_dtypes(include=[np.number]).columns
-    if numeric_cols.any():
-        first_col = numeric_cols[0]
-        plt.figure(figsize=(6, 6))
-        sns.histplot(data[first_col], kde=True, bins=30, color='blue')
-        plt.title(f'Distribution of {first_col}')
-        dist_plot_path = os.path.join(save_directory, f'{first_col}_distribution.png')
-        plt.savefig(dist_plot_path)
-        plt.close()
-    else:
-        dist_plot_path = None
-
-    print("Visualizations created successfully.")
-    return heatmap_path, outlier_plot_path, dist_plot_path
-
-def generate_report(stats, missing_vals, correlations, anomalies, save_directory, dist_plot_path=None):
-    print("Compiling report...")
-    report_path = os.path.join(save_directory, 'ANALYSIS_REPORT.md')
-    with open(report_path, 'w') as file:
-        file.write("# Data Analysis Summary\n\n")
-        file.write("## Overview\nThis report presents insights from the analyzed dataset, along with visualizations of key patterns and anomalies.\n\n")
-        file.write("## Summary Statistics\n")
-        file.write(stats.to_markdown(tablefmt="grid"))
-        file.write("\n\n")
-        file.write("## Missing Data\n")
-        file.write(missing_vals.to_markdown(tablefmt="grid"))
-        file.write("\n\n")
-        file.write("## Outliers\n")
-        file.write(anomalies.to_markdown(tablefmt="grid"))
-        file.write("\n\n")
-        file.write("## Correlation Matrix\n")
-        file.write("![](correlation_heatmap.png)\n\n")
-        if anomalies.sum() > 0:
-            file.write("## Outlier Analysis\n")
-            file.write("![](outlier_analysis.png)\n\n")
-        if dist_plot_path:
-            file.write("## Distribution Analysis\n")
-            file.write(f"![Distribution](./{os.path.basename(dist_plot_path)})\n\n")
-        file.write("---\n## Notes\nThis report was automatically generated and reflects data insights as analyzed.\n")
-    print("Report generated: ", report_path)
-    return report_path
-
-def run_analysis(data_path):
-    print("Initializing data analysis pipeline...")
-    data = None
-
-    try:
-        if data_path.startswith("http"):
-            # Load from URL
-            data = load_remote_csv(data_path)
+        if file_path.startswith("http"):
+            logging.info("Loading remote CSV file.")
+            df = pd.read_csv(file_path)
         else:
-            # Load local file
-            print(f"Attempting to load file: {data_path}")
-            data = pd.read_csv(data_path, encoding='utf-8', encoding_errors='replace')
-            print("Data loaded successfully.")
-    except pd.errors.ParserError as e:
-        print(f"ParserError: {e}")
+            logging.info("Loading local CSV file.")
+            df = pd.read_csv(file_path)
+        logging.info(f"Dataset loaded successfully with shape: {df.shape}")
+        return df
     except Exception as e:
-        print(f"Error loading data: {e}")
-        return
+        logging.error(f"Error loading dataset: {e}")
+        raise
 
-    if data is not None:
-        stats, missing, correlations = summarize_dataset(data)
-        anomalies = identify_outliers(data)
+# Function to summarize the dataset
+def summarize_dataset(df):
+    try:
+        logging.info("Generating dataset summary.")
+        summary = {
+            "shape": df.shape,
+            "columns": df.columns.tolist(),
+            "missing_values": df.isnull().sum().to_dict(),
+            "data_types": df.dtypes.to_dict(),
+            "memory_usage": df.memory_usage(deep=True).sum()
+        }
+        logging.info("Summary generated successfully.")
+        return summary
+    except Exception as e:
+        logging.error(f"Error summarizing dataset: {e}")
+        raise
 
-        output_directory = "results"
-        heatmap_path, outlier_plot_path, dist_plot_path = create_visualizations(correlations, anomalies, data, output_directory)
-        generate_report(stats, missing, correlations, anomalies, output_directory, dist_plot_path)
-        print("Pipeline execution complete.")
-    else:
-        print("No valid data to analyze.")
+# Function to detect anomalies in numerical columns
+def detect_anomalies(df):
+    try:
+        logging.info("Detecting anomalies using IQR method.")
+        anomalies = {}
+        for col in df.select_dtypes(include=[np.number]).columns:
+            Q1 = df[col].quantile(0.25)
+            Q3 = df[col].quantile(0.75)
+            IQR = Q3 - Q1
+            lower_bound = Q1 - 1.5 * IQR
+            upper_bound = Q3 + 1.5 * IQR
+            anomalies[col] = df[(df[col] < lower_bound) | (df[col] > upper_bound)][col].tolist()
+        logging.info("Anomaly detection completed.")
+        return anomalies
+    except Exception as e:
+        logging.error(f"Error detecting anomalies: {e}")
+        raise
+
+# Function to generate visualizations
+def generate_visualizations(df, output_dir):
+    try:
+        logging.info("Generating visualizations.")
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Correlation heatmap
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(df.corr(), annot=True, cmap="coolwarm")
+        heatmap_path = os.path.join(output_dir, "correlation_heatmap.png")
+        plt.savefig(heatmap_path)
+        plt.close()
+        logging.info(f"Correlation heatmap saved to {heatmap_path}.")
+
+        # Distribution plots
+        dist_plots = []
+        for col in df.select_dtypes(include=[np.number]).columns:
+            plt.figure(figsize=(8, 6))
+            sns.histplot(df[col], kde=True)
+            dist_path = os.path.join(output_dir, f"{col}_distribution.png")
+            plt.savefig(dist_path)
+            plt.close()
+            dist_plots.append(dist_path)
+            logging.info(f"Distribution plot saved for {col}.")
+
+        return {"heatmap": heatmap_path, "distributions": dist_plots}
+    except Exception as e:
+        logging.error(f"Error generating visualizations: {e}")
+        raise
+
+# Function to generate a Markdown report
+def generate_report(summary, anomalies, viz_paths, output_dir):
+    try:
+        logging.info("Generating Markdown report.")
+        report_path = os.path.join(output_dir, "ANALYSIS_REPORT.md")
+        with open(report_path, "w") as f:
+            f.write("# Dataset Analysis Report\n\n")
+            f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+
+            # Summary
+            f.write("## Dataset Summary\n\n")
+            for key, value in summary.items():
+                f.write(f"- **{key.capitalize()}**: {value}\n")
+            f.write("\n")
+
+            # Anomalies
+            f.write("## Anomalies\n\n")
+            for col, values in anomalies.items():
+                f.write(f"- **{col}**: {len(values)} anomalies detected\n")
+            f.write("\n")
+
+            # Visualizations
+            f.write("## Visualizations\n\n")
+            f.write(f"![Correlation Heatmap]({viz_paths['heatmap']})\n\n")
+            for dist in viz_paths['distributions']:
+                f.write(f"![Distribution Plot]({dist})\n")
+
+        logging.info(f"Report saved to {report_path}.")
+    except Exception as e:
+        logging.error(f"Error generating report: {e}")
+        raise
+
+# Main function
+def main():
+    parser = argparse.ArgumentParser(description="Automated Dataset Analysis Tool.")
+    parser.add_argument("file", help="Path to the dataset (CSV file) or remote URL.")
+    parser.add_argument("--output", default="results", help="Directory to save results.")
+    args = parser.parse_args()
+
+    try:
+        df = load_csv(args.file)
+        summary = summarize_dataset(df)
+        anomalies = detect_anomalies(df)
+        viz_paths = generate_visualizations(df, args.output)
+        generate_report(summary, anomalies, viz_paths, args.output)
+        logging.info("Dataset analysis completed successfully.")
+    except Exception as e:
+        logging.error(f"Error in dataset analysis: {e}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Automated Dataset Analysis Tool")
-    parser.add_argument("file", nargs='?', default="media.csv", help="Path to the dataset (CSV file)")
-    args = parser.parse_args()
-    run_analysis(args.file)
+    main()
