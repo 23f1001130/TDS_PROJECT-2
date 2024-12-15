@@ -8,6 +8,8 @@
 #   "requests",
 #   "openai",
 #   "ipykernel",
+#    "tabulate",
+#    "importlib",
 #   "chardet"  # Add all packages used in the script
 # ]
 # ///
