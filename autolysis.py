@@ -10,6 +10,9 @@
 #   "scikit-learn",
 #   "requests",
 #   "ipykernel",
+#   "StandardScaler",
+#    "PCA",
+#    
 # ]
 # ///
 import os
