@@ -1,19 +1,4 @@
-# /// script
-# requires-python = ">=3.9"
-# dependencies = [
-#   "pandas",
-#   "openai",
-#   "tabulate",
-#   "scikit-learn",
-#   "requests",
-#   "ipykernel",
-#   "seaborn",
-#   "matplotlib",
-#   "plotly",
-#   "numpy",
-#   "scipy"
-# ]
-# ///
+
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
