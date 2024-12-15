@@ -1,3 +1,4 @@
+# /// script
 # requires-python = ">=3.11"
 # dependencies = [
 #   "seaborn",
@@ -5,12 +6,11 @@
 #   "pandas",
 #   "requests",
 #   "openai",
-#   "ipykernel",
-#   "tabulate",
-#   "importlib",
-#    "pandas",
+#   "numpy",
+#   "jason",
 #   "chardet"  # Add all packages used in the script
 # ]
+# ///
 
 
 import os
@@ -164,5 +164,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args.csv_file, args.output_dir)
-
-
