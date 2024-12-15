@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 import requests
 import json
 import openai  # Ensure this library is installed: pip install openai
+from datetime import datetime
 
 # -----------------------------------------------------------
 # Function to analyze dataset properties and statistics
@@ -95,13 +96,16 @@ def generate_visualizations(correlation_matrix, outlier_counts, df, output_direc
     Create visualizations including correlation heatmap and outlier distributions.
     """
     print("Creating data visualizations...")  # Debug
-    
+
+    # Timestamp for unique file names
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+
     # Correlation heatmap
     if not correlation_matrix.empty:
-        plt.figure(figsize=(12, 10))
+        plt.figure(figsize=(6, 6))
         sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
         plt.title('Correlation Heatmap')
-        correlation_matrix_path = os.path.join(output_directory, 'correlation_matrix.png')
+        correlation_matrix_path = os.path.join(output_directory, f'correlation_matrix_{timestamp}.png')
         plt.savefig(correlation_matrix_path)
         plt.close()
     else:
@@ -110,12 +114,12 @@ def generate_visualizations(correlation_matrix, outlier_counts, df, output_direc
 
     # Outlier visualization
     if not outlier_counts.empty and outlier_counts.sum() > 0:
-        plt.figure(figsize=(14, 7))
+        plt.figure(figsize=(6, 6))
         outlier_counts.plot(kind='bar', color='crimson')
         plt.title('Outlier Counts by Column')
         plt.xlabel('Columns')
         plt.ylabel('Number of Outliers')
-        outliers_path = os.path.join(output_directory, 'outliers.png')
+        outliers_path = os.path.join(output_directory, f'outliers_{timestamp}.png')
         plt.savefig(outliers_path)
         plt.close()
     else:
@@ -126,10 +130,10 @@ def generate_visualizations(correlation_matrix, outlier_counts, df, output_direc
     numeric_columns = df.select_dtypes(include=[np.number]).columns
     if len(numeric_columns) > 0:
         first_numeric_column = numeric_columns[0]
-        plt.figure(figsize=(12, 6))
+        plt.figure(figsize=(6, 6))
         sns.histplot(df[first_numeric_column], kde=True, color='blue', bins=30)
         plt.title(f'Distribution of {first_numeric_column}')
-        distribution_path = os.path.join(output_directory, 'distribution.png')
+        distribution_path = os.path.join(output_directory, f'distribution_{timestamp}.png')
         plt.savefig(distribution_path)
         plt.close()
     else:
@@ -148,7 +152,10 @@ def write_readme(summary, missing_data, corr_matrix, outlier_counts, df, output_
     Create a README.md summarizing the analysis and visualizations.
     """
     print("Writing analysis results to README.md...")  # Debug
-    readme_path = os.path.join(output_directory, 'README.md')
+    
+    # Timestamp for unique file name
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    readme_path = os.path.join(output_directory, f'README_{timestamp}.md')
     try:
         with open(readme_path, 'w') as readme:
             readme.write("# Dataset Analysis Report\n\n")
